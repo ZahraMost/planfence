@@ -69,3 +69,21 @@ def test_examples_mention_plan_source():
         assert "plan_source" in text and "opentofu" in text, rel
     wf = (ROOT / "examples/github-actions/planguard-example.yml").read_text(encoding="utf-8")
     assert "-target" in wf and "-exclude" in wf
+
+
+# ---- the example workflow only CHECKS ---------------------------------------------------
+
+WORKFLOW_NEEDLES = [
+    "only CHECKS",
+    "protected environment",
+    "required reviewers",
+    "accidental change",
+    "uploading an artifact",
+]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_example_workflow_scope_documented(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for needle in WORKFLOW_NEEDLES:
+        assert needle in text, f"{name}: missing {needle!r}"

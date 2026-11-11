@@ -108,6 +108,26 @@ IMPORT_BLOCK = (
 )
 
 
+# Consumer of the producer's local state: a resource and an output both derived from it.
+REMOTE_CONSUMER = (
+    'data "terraform_remote_state" "src" {\n'
+    '  backend = "local"\n'
+    "  config = {\n"
+    '    path = "${path.module}/producer/terraform.tfstate"\n'
+    "  }\n"
+    "}\n\n"
+    'resource "terraform_data" "example" {\n'
+    "  input = data.terraform_remote_state.src.outputs.greeting\n"
+    "}\n\n"
+    'output "greeting" {\n'
+    "  value = data.terraform_remote_state.src.outputs.greeting\n"
+    "}\n"
+)
+PRODUCER_CHANGED: Files = {
+    "main.tf": 'resource "terraform_data" "p" {\n  input = "x"\n}\n\noutput "greeting" {\n  value = "changed"\n}\n'
+}
+
+
 @dataclass
 class Scenario:
     planned: Files
@@ -115,6 +135,7 @@ class Scenario:
     producer: Files | None = None  # applied in ./producer before anything else
     note: str = ""
     plan_args: tuple[str, ...] = ()  # extra arguments for `plan` (e.g. -target=...)
+    producer_update: Files | None = None  # applied to ./producer AFTER the baseline apply (real drift)
     default: bool = True  # generated when no scenario names are given
     tools: tuple[str, ...] = ()  # binaries that support it (empty = all), e.g. ("tofu",)
     extra: Files = field(default_factory=dict)  # files present in both phases
@@ -145,6 +166,20 @@ SCENARIOS: dict[str, Scenario] = {
     "two_target": Scenario(
         baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
         plan_args=("-target=terraform_data.a",), default=False,
+    ),
+    # plan modes (not in the default set; stored in tests/fixtures/modes/<tool>/)
+    "replace_flag": Scenario(
+        baseline={"main.tf": res()}, planned={"main.tf": res()},
+        plan_args=("-replace=terraform_data.example",), default=False,
+    ),
+    "refresh_only": Scenario(
+        baseline={"main.tf": res()}, planned={"main.tf": res()}, plan_args=("-refresh-only",), default=False,
+    ),
+    # real drift offline: the producer's output changes between the consumer's apply and its plan
+    "refresh_only_output_drift": Scenario(
+        producer=PRODUCER, producer_update=PRODUCER_CHANGED,
+        baseline={"main.tf": REMOTE_CONSUMER}, planned={"main.tf": REMOTE_CONSUMER},
+        plan_args=("-refresh-only",), default=False,
     ),
     "two_exclude": Scenario(  # Terraform 1.17.2 has no -exclude; OpenTofu 1.13.9 does
         baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
@@ -208,6 +243,9 @@ def make_scenario(binary: str, name: str, sc: Scenario) -> dict:
         if sc.baseline is not None:
             write_files(work, sc.baseline)
             init_apply(binary, work, env)
+        if sc.producer_update is not None:
+            write_files(work / "producer", sc.producer_update)
+            run(binary, ["apply", "-auto-approve", "-input=false", "-no-color"], work / "producer", env)
         write_files(work, sc.planned)
         run(binary, ["init", "-input=false", "-no-color"], work, env)
         run(binary, ["plan", "-input=false", "-no-color", "-out=tfplan", *sc.plan_args], work, env)

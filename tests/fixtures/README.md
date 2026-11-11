@@ -70,6 +70,29 @@ In OpenTofu the only differences from the full plan are derived content (fewer e
 resources missing from `planned_values`" would also fire for legitimate `count = 0`, empty
 `for_each` and destroyed resources, so it is not a reliable signal and planguard does not use it.
 
+## modes/ (generated): plan flags and modes, real output of both tools
+
+`modes/terraform/` (Terraform 1.17.2) and `modes/opentofu/` (OpenTofu 1.13.9), generated with
+`scripts/make_fixtures.py --out tests/fixtures/modes/<dir> replace_flag refresh_only refresh_only_output_drift`
+(non-default scenarios, built-in resources only). Verified by `tests/test_plan_modes.py`.
+
+| Scenario | How it is produced | `resource_changes` | Other top-level content | planguard (strictest contract) |
+|---|---|---|---|---|
+| `replace_flag` | unchanged config, `plan -replace=terraform_data.example` | `terraform_data.example` -> `["delete","create"]`, `action_reason: replace_by_request`, **no** `replace_paths` | none | exit 1 (`no-replace`, budget) |
+| `refresh_only` | unchanged config, `plan -refresh-only` | **key absent** | no `resource_drift`, no `output_changes`; Terraform: `applyable: false` | exit 0 |
+| `refresh_only_output_drift` | `terraform_remote_state` reads a local producer state; the producer's output changes ("hello" -> "changed") between the consumer's apply and `plan -refresh-only` | **key absent** (the resource that depends on it is not listed) | `output_changes.greeting` = `["update"]` hello -> changed; `relevant_attributes`; Terraform: `applyable: true` | **exit 0** |
+
+Observations that matter:
+- `-replace` is indistinguishable from a config-driven replacement except for `action_reason`
+  (`replace_by_request` vs `replace_because_cannot_update`) and the missing `replace_paths`;
+  planguard judges `actions` only, so `no-replace` catches both.
+- A `-refresh-only` plan that would change the state (here an output; Terraform reports it as
+  `applyable: true`) has nothing in `resource_changes`, so planguard passes it. This is a documented
+  limitation: `output_changes` and `resource_drift` are not checked.
+- **Not produced:** real `resource_drift` (a managed resource changed outside Terraform). It cannot
+  be created offline with built-in resources (`terraform_data` has no external system), and editing
+  the state file by hand would be faking it, so there is no fixture for it.
+
 ## handmade
 
 Hand-written, NOT verified against a real plan. They exist only to test that

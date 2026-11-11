@@ -107,6 +107,14 @@ aws_instance = 2
 - `enabled_rules` is required and non-empty. A rule that is enabled but lacks
   its section, or a section whose rule is not enabled -> exit 2.
 - Empty allow / types lists, an empty [budget], empty strings -> exit 2.
+- Limits: at most 500 `scope.allow` patterns, each at most 512 characters
+  (counted in characters) -> exit 2 above that. Error messages never echo patterns.
+- scope matching uses AddressMatcher: no-wildcard patterns -> set lookup,
+  `prefix*` (single trailing `*`, no `?`) -> startswith, everything else ->
+  glob_match. Semantics MUST stay identical to glob_match (fuzz-tested).
+- Residual resource risk: glob_match is O(pattern x address) per call for general
+  patterns and addresses are bounded only by the 128 MiB plan size limit. Use CI
+  `timeout-minutes`.
 - Config path: `--config` (default `./planguard.toml`); a missing file -> exit 2.
   Config file size limit 1 MiB.
 - What counts as "stateful" is the USER's decision (security behaviour): never

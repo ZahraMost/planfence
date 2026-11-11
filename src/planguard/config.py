@@ -6,7 +6,7 @@ Format:
     enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
 
     [scope]                       # required iff "scope" is enabled
-    allow = ["aws_s3_bucket.*", "module.app.*"]
+    allow = ["aws_s3_bucket.*", "module.app.*"]   # at most 500 patterns, each <= 512 chars
 
     [stateful]                    # required iff "stateful-protect" is enabled
     types = ["aws_db_instance"]
@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 MAX_CONFIG_BYTES = 1024 * 1024
+MAX_ALLOW_PATTERNS = 500
+MAX_PATTERN_LENGTH = 512  # characters
 
 RULE_IDS = ("no-delete", "no-replace", "scope", "stateful-protect", "budget")
 
@@ -96,6 +98,10 @@ def parse_config(data: object) -> Config:
         if "allow" not in scope:
             raise ConfigError("[scope] requires 'allow'")
         allow = _str_list(scope["allow"], "scope.allow")
+        if len(allow) > MAX_ALLOW_PATTERNS:
+            raise ConfigError(f"scope.allow has more than {MAX_ALLOW_PATTERNS} patterns")
+        if any(len(p) > MAX_PATTERN_LENGTH for p in allow):
+            raise ConfigError(f"scope.allow has a pattern longer than {MAX_PATTERN_LENGTH} characters")
 
     stateful_types: tuple[str, ...] = ()
     if "stateful" in data:

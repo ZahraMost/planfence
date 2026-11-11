@@ -52,7 +52,7 @@ Options: `--config PATH` (default `./planguard.toml`; a missing file is an error
 |---|---|---|
 | `no-delete` | a resource's actions are exactly `["delete"]` (a replacement or forget is not a delete) | error |
 | `no-replace` | actions contain both `delete` and `create` (either order) | error |
-| `scope` | a change's address matches none of the allowed patterns | error |
+| `scope` | a change's address matches none of the allowed patterns; for a moved resource, its address or its `previous_address` matches none | error |
 | `stateful-protect` | a configured stateful *type* is deleted, replaced or forgotten | critical |
 | `budget` | total changes exceed `max_changes`, or creates of a type exceed its limit | error |
 
@@ -63,12 +63,40 @@ How changes are counted:
 - `forget` (a `removed` block with `destroy = false`) **is** a change: it counts toward the budget,
   is subject to `scope`, and is flagged by `stateful-protect`, but not by `no-delete`.
 - A replacement counts as **one** change and **one** create for its type.
+- **Moves** (`moved` blocks) are described under "Moved resources" below: the `scope` rule treats every
+  move as a change, but a pure move is not counted as a change for `budget`.
 - Plans containing things planguard cannot judge are **refused (exit 2)** rather than passed:
   a non-empty top-level `action_invocations` (Terraform actions) or `deferred_changes`, and any
   change with an `importing` object (an `import` block, even when the action is a no-op).
   Absent or empty is fine.
 - An absent `resource_changes` key means "nothing planned" (Terraform omits it for empty plans),
   accepted only when `format_version` is known, `errored` is false and `complete` is true.
+
+### Moved resources
+
+A resource that a `moved` block renames or relocates appears in `resource_changes` with a
+`previous_address`. Verified with real Terraform 1.17.2 and OpenTofu 1.13.9 plans
+([tests/fixtures/README.md](tests/fixtures/README.md)): a pure rename or move into a module is
+`["no-op"]`, a move together with an input change is `["update"]` at the **new** address.
+
+- **The bypass that existed.** `scope` used to look only at the new address, so a resource outside the
+  allowlist could be moved to an allowed address and changed in the same plan. With the real fixture
+  `moved_update` and only `terraform_data.new` allowed, planguard passed although the resource being
+  updated lived at `terraform_data.old`.
+- **The rule.** `scope` treats every move as a change, whatever its action (even `["no-op"]`), and a
+  moved entry passes only if both its address and its `previous_address` match the allowlist; otherwise
+  it is a `scope` violation. Entries that are not moves are unchanged (no-op and read are still ignored).
+- **Everything else is unchanged.** `no-delete`, `no-replace` and `stateful-protect` judge actions only.
+  For `budget`, a pure move is not counted as a change (a move with an update counts once).
+- **Validation.** `previous_address`, when present, must be a non-empty string of at most 4096
+  characters (null, wrong type, empty or longer is exit 2; the message names the field and the entry
+  index only). A `previous_address` equal to `address` is not a move and is ignored.
+- **Output.** Violations of moved entries show where they came from: text appends `moved-from=ADDR`
+  (ASCII-escaped, after `deposed=`), JSON violation objects always have a `previous_address` field
+  (`null` when there is none).
+- **Across pull requests.** planguard judges one plan at a time. A PR that moves a resource into scope
+  and a later PR that changes it are each judged on its own against the allowlist; the contract is the
+  allowlist, and a resource inside it may be changed however it got there.
 
 ## Configuration: `planguard.toml`
 
@@ -124,9 +152,9 @@ In JSON, budget violations (and only those) have integer `count` and `limit` fie
 ```json
 {"result": "fail", "changes_checked": 6, "violations": [
   {"rule": "budget", "severity": "error", "address": null, "type": null, "action": null,
-   "deposed": null, "count": 6, "limit": 5},
+   "deposed": null, "previous_address": null, "count": 6, "limit": 5},
   {"rule": "no-replace", "severity": "error", "address": "terraform_data.example",
-   "type": "terraform_data", "action": "delete,create", "deposed": null}]}
+   "type": "terraform_data", "action": "delete,create", "deposed": null, "previous_address": null}]}
 ```
 
 With `--format json`, errors (exit 2) also print `{"result": "error", "message": "..."}` on stdout
@@ -206,15 +234,15 @@ Plan JSON shapes were verified with real `show -json` output from **Terraform 1.
 **OpenTofu 1.13.9** (both `format_version` "1.2") on **16 scenarios** using the built-in
 `terraform_data` resource: create, update, delete, replace (both action orders), no-op, forget,
 read (deferred and immediate), empty plan, `count`, `for_each`, a local module, and three
-`import` variants. The `actions` lists, `change.importing` and the presence of
+`import` variants, plus three `moved` scenarios (rename, rename with a change, move into a module).
+The `actions` lists, `change.importing` and the presence of
 `resource_changes` are identical in both tools; the only difference is that OpenTofu's JSON has
 no `complete` and no `applyable` (see [OpenTofu](#opentofu)). Fixtures and comparison tables:
 [tests/fixtures/README.md](tests/fixtures/README.md). Any `format_version` of the form `1.x` is
 accepted and unknown properties are ignored, but any action list not seen in real output is
 rejected (exit 2) rather than guessed.
 
-Not verified: plans containing `deposed` objects; `moved` blocks (planguard judges only
-`actions` and ignores `previous_address`); the real JSON shape of `action_invocations` and
+Not verified: plans containing `deposed` objects; the real JSON shape of `action_invocations` and
 `deferred_changes` (refused via hand-made fixtures only, neither tool could produce them with
 built-in resources); other OpenTofu/Terraform versions and providers; Python 3.11 and 3.12
 (developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](CLAUDE.md).
@@ -316,7 +344,7 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
-# mutation testing: applies 91 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 104 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
 

@@ -23,14 +23,18 @@ class Violation:
     deposed: str | None = None
     count: int | None = None  # budget only: observed number
     limit: int | None = None  # budget only: configured maximum
+    previous_address: str | None = None  # set when the entry is a move (`moved` block)
 
     @property
-    def sort_key(self) -> tuple[str, str, str, str]:
-        return (self.address or "", self.deposed or "", self.rule, self.type or "")
+    def sort_key(self) -> tuple[str, str, str, str, str]:
+        return (self.address or "", self.deposed or "", self.rule, self.type or "", self.previous_address or "")
 
 
 def _from_change(rule: str, severity: str, change) -> Violation:
-    return Violation(rule, severity, change.address, change.type, change.action_label, change.deposed)
+    return Violation(
+        rule, severity, change.address, change.type, change.action_label, change.deposed,
+        previous_address=change.previous_address,
+    )
 
 
 def no_delete(changes: Iterable) -> list[Violation]:
@@ -112,14 +116,25 @@ class AddressMatcher:
         return any(glob_match(p, text) for p in self._generic)
 
 
+def _scope_ok(matcher: AddressMatcher, change) -> bool:
+    """A moved entry must be allowlisted at BOTH its new and its previous address."""
+    return matcher.matches(change.address) and (
+        change.previous_address is None or matcher.matches(change.previous_address)
+    )
+
+
 def scope(changes: Iterable, allow: Iterable[str]) -> list[Violation]:
-    """Every change (not no-op / read) must match at least one allowed pattern."""
+    """Every change must match an allowed pattern; so must every move (even a no-op one).
+
+    no-op and read entries that are not moves are ignored. A moved entry passes only if both
+    its address and its previous_address match.
+    """
     matcher = AddressMatcher(allow)
     return sorted(
         (
             _from_change("scope", SEVERITY_ERROR, c)
             for c in changes
-            if c.is_change and not matcher.matches(c.address)
+            if (c.is_change or c.is_move) and not _scope_ok(matcher, c)
         ),
         key=lambda v: v.sort_key,
     )

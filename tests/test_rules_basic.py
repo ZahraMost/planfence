@@ -52,4 +52,4 @@ def test_results_are_sorted_by_address():
 
 
 def test_violation_has_no_attribute_fields():
-    assert set(Violation.__dataclass_fields__) == {"rule", "severity", "address", "type", "action", "deposed", "count", "limit"}
+    assert set(Violation.__dataclass_fields__) == {"rule", "severity", "address", "type", "action", "deposed", "count", "limit", "previous_address"}

@@ -46,6 +46,8 @@ def _text_line(v: Violation) -> str:
     line = f"[{_safe(v.severity)}] {_safe(v.rule)} {_safe(v.address)} ({_safe(v.type)}) {_safe(v.action)}"
     if v.deposed is not None:
         line += f" deposed={_safe(v.deposed)}"
+    if v.previous_address is not None:
+        line += f" moved-from={_safe(v.previous_address)}"
     return line
 
 
@@ -57,6 +59,7 @@ def _json_obj(v: Violation) -> dict:
         "type": v.type,
         "action": v.action,
         "deposed": v.deposed,
+        "previous_address": v.previous_address,
     }
     if v.rule == "budget":
         obj["count"] = v.count

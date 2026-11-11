@@ -112,9 +112,9 @@ def test_budget_json_has_count_and_limit_only_for_budget(capsys, tmp_path):
         by_rule.setdefault(v["rule"], []).append(v)
     assert by_rule["budget"] == [
         {"rule": "budget", "severity": "error", "address": None, "type": None, "action": None,
-         "deposed": None, "count": 2, "limit": 0},
+         "deposed": None, "previous_address": None, "count": 2, "limit": 0},
         {"rule": "budget", "severity": "error", "address": None, "type": "terraform_data", "action": "create",
-         "deposed": None, "count": 1, "limit": 0},
+         "deposed": None, "previous_address": None, "count": 1, "limit": 0},
     ]
     assert all(type(v["count"]) is int and type(v["limit"]) is int for v in by_rule["budget"])
     assert "count" not in by_rule["no-delete"][0] and "limit" not in by_rule["no-delete"][0]
@@ -138,9 +138,9 @@ def test_json_output(capsys, cfg):
         "changes_checked": 1,
         "violations": [
             {"rule": "no-replace", "severity": "error", "address": "terraform_data.example",
-             "type": "terraform_data", "action": "delete,create", "deposed": None},
+             "type": "terraform_data", "action": "delete,create", "deposed": None, "previous_address": None},
             {"rule": "stateful-protect", "severity": "critical", "address": "terraform_data.example",
-             "type": "terraform_data", "action": "delete,create", "deposed": None},
+             "type": "terraform_data", "action": "delete,create", "deposed": None, "previous_address": None},
         ],
     }
 

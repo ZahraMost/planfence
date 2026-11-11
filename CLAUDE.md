@@ -63,6 +63,10 @@ Hardening (tested in tests/test_exit_hardening.py):
   Absent, `[]` (and `importing: null`) are fine.
 - String limit: `address`, `type` and `deposed` longer than 4096 characters
   (characters, not bytes) -> exit 2; message names field and index only.
+- `previous_address` (moved blocks; verified with real fixtures tests/fixtures/moved): when
+  present it must be a non-empty string of at most 4096 characters, else exit 2 (message names
+  field and index only). Equal to `address` -> not a move (ignored). Change.previous_address is
+  None for non-moves; `Change.is_move`.
 - Each item: `address`, `type`, `change.actions`; `deposed` key when present
   (not yet seen in a real fixture).
 - Known `actions` lists (all verified with real fixtures):
@@ -81,8 +85,15 @@ Do not assume more than this. If a required field is missing, fail closed (exit 
 - "forget" is a change: counts toward budget, subject to scope, flagged by
   stateful-protect for stateful types; NOT flagged by no-delete.
 - A replacement counts as 1 change and as 1 create for its type.
+- Moves: the scope rule treats every move as a change, whatever its action (even ["no-op"]);
+  a moved entry passes only if both its address and its `previous_address` match the
+  allowlist. Non-moves unchanged. Budget unchanged: a pure move is not counted as a change
+  (a move + update counts once). no-delete / no-replace / stateful-protect judge actions only.
+  Real bypass that existed (fixture moved_update): only the NEW address allowed passed although
+  the updated resource lived at the OLD address. Across PRs: each plan is judged on its own;
+  the allowlist is the contract.
 - Count only `resource_changes`; never `resource_drift` or `output_changes`.
-- Identify and sort entries by `address` plus `deposed` when present.
+- Identify and sort entries by `address`, then `deposed`, then `previous_address`.
 
 ## Address matching
 Custom matcher, NOT fnmatch. Only `*` (any characters, including dots and
@@ -138,8 +149,10 @@ aws_instance = 2
 ## Output
 - Text (default) and `--format json`.
 - Print ONLY: rule id, severity (`error`, or `critical` for stateful-protect),
-  address, type, action, and the `deposed` key when present. For budget
-  violations also the integers `count` and `limit`. Nothing else.
+  address, type, action, the `deposed` key when present, and `moved-from=ADDR` (the
+  previous address of a moved entry, ASCII-escaped). JSON violation objects always have
+  `previous_address` (null when none). For budget violations also the integers `count`
+  and `limit`. Nothing else.
 - NEVER print attribute values (they may contain secrets).
 - Deterministic ordering (address, then deposed key, then rule, then type).
 - Text is pure ASCII: control and non-ASCII characters in addresses/types are
@@ -208,8 +221,6 @@ planguard sees only the plan JSON, not the command line.
 - `deposed`: supported (sorting, display, all rules) but no real plan fixture
   has one; tests use hand-built plans.
 - Python 3.11 and 3.12: untested locally (only 3.13). CI matrix is the first check.
-- `moved` blocks: not verified. planguard ignores `previous_address` and judges
-  only `actions`; a pure move may appear as a no-op/update.
 - `action_invocations` and `deferred_changes`: the exit-2 rule is tested only
   with HAND-MADE fixtures (tests/fixtures/handmade/); the real JSON shape of
   their entries is unverified (not producible with Terraform 1.17.2 / OpenTofu 1.13.9 + built-in
@@ -256,7 +267,7 @@ or any network use other than `pip install` and Terraform's own init.
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N
   sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
-- scripts/mutation_check.py: 91 source mutations run against temp copies of src/ (never
+- scripts/mutation_check.py: 104 source mutations run against temp copies of src/ (never
   edits src/). Every mutant must be KILLED or listed in its EQUIVALENT dict with a
   reason; add a test for any survivor. Run it after changing rules/parser/config/cli.
 - Tests honour PLANGUARD_SRC (see tests/conftest.py SRC) so subprocess tests can

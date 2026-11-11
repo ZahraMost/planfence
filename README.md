@@ -63,6 +63,10 @@ How changes are counted:
 - `forget` (a `removed` block with `destroy = false`) **is** a change: it counts toward the budget,
   is subject to `scope`, and is flagged by `stateful-protect`, but not by `no-delete`.
 - A replacement counts as **one** change and **one** create for its type.
+- Plans containing things planguard cannot judge are **refused (exit 2)** rather than passed:
+  a non-empty top-level `action_invocations` (Terraform actions) or `deferred_changes`, and any
+  change with an `importing` object (an `import` block, even when the action is a no-op).
+  Absent or empty is fine.
 - An absent `resource_changes` key means "nothing planned" (Terraform omits it for empty plans),
   accepted only when `format_version` is known, `errored` is false and `complete` is true.
 
@@ -145,8 +149,9 @@ Plan JSON shapes were verified with real `terraform show -json` output from **Te
 `format_version` of the form `1.x` is accepted and unknown properties are ignored, but any action
 list not seen in real output is rejected (exit 2) rather than guessed.
 
-Not verified: OpenTofu; plans containing `deposed` objects; `moved` and `import` blocks (planguard
-judges only `actions` and ignores `previous_address` / `importing`); Python 3.11 and 3.12
+Not verified: OpenTofu; plans containing `deposed` objects; `moved` blocks (planguard judges only
+`actions` and ignores `previous_address`); the real JSON shape of `action_invocations` and
+`deferred_changes` (refused via hand-made fixtures only); Python 3.11 and 3.12
 (developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](CLAUDE.md).
 
 ## Security notes

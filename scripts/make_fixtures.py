@@ -100,6 +100,14 @@ READ_DEFERRED = (
 READ_IMMEDIATE = REMOTE_STATE.replace("{depends}", "")
 
 
+IMPORT_BLOCK = (
+    "\nimport {\n"
+    "  to = terraform_data.example\n"
+    '  id = "11111111-2222-3333-4444-555555555555"\n'
+    "}\n"
+)
+
+
 @dataclass
 class Scenario:
     planned: Files
@@ -122,6 +130,10 @@ SCENARIOS: dict[str, Scenario] = {
     "read": Scenario(planned={"main.tf": READ_DEFERRED}, producer=PRODUCER),
     "read_immediate": Scenario(planned={"main.tf": READ_IMMEDIATE}, producer=PRODUCER),
     "empty": Scenario(planned={"main.tf": ""}),
+    # import block: plan shows change.importing; actions are ["update"] / ["delete","create"] / ["no-op"]
+    "import": Scenario(planned={"main.tf": 'resource "terraform_data" "example" {\n  input = "a"\n}\n' + IMPORT_BLOCK}),
+    "import_replace": Scenario(planned={"main.tf": res(input_value="a") + IMPORT_BLOCK}),
+    "import_noop": Scenario(planned={"main.tf": 'resource "terraform_data" "example" {}\n' + IMPORT_BLOCK}),
     "count": Scenario(baseline={"main.tf": counted(3)}, planned={"main.tf": counted(2)}),
     "for_each": Scenario(
         baseline={"main.tf": keyed({"a": "1", "b": "1"})},

@@ -40,6 +40,14 @@ Hardening (tested in tests/test_exit_hardening.py):
   empty config, and data sources read at plan time). Treat absent as zero
   changes ONLY when format_version is known, errored is false and complete
   is true. If present, it must be a list.
+- Content planguard cannot judge -> exit 2 (fail closed), error messages name
+  the field only, never values:
+  - top-level `action_invocations` present and not an empty list
+  - top-level `deferred_changes` present and not an empty list
+  - any resource_changes entry with a non-null `change.importing` (an import
+    happens in addition to the actions, e.g. import + no-op). Verified with real
+    fixtures (import, import_replace, import_noop).
+  Absent, `[]` (and `importing: null`) are fine.
 - Each item: `address`, `type`, `change.actions`; `deposed` key when present
   (not yet seen in a real fixture).
 - Known `actions` lists (all verified with real fixtures):
@@ -131,9 +139,12 @@ aws_instance = 2
 - `deposed`: supported (sorting, display, all rules) but no real plan fixture
   has one; tests use hand-built plans.
 - Python 3.11 and 3.12: untested locally (only 3.13). CI matrix is the first check.
-- `moved` and `import` blocks: not verified. planguard ignores `previous_address`
-  and `importing` and judges only `actions`; a pure move or import may appear as a
-  no-op/update and is not specially treated.
+- `moved` blocks: not verified. planguard ignores `previous_address` and judges
+  only `actions`; a pure move may appear as a no-op/update.
+- `action_invocations` and `deferred_changes`: the exit-2 rule is tested only
+  with HAND-MADE fixtures (tests/fixtures/handmade/); the real JSON shape of
+  their entries is unverified (not producible with Terraform 1.17.2 + built-in
+  resources). `importing` IS verified with real fixtures.
 - Action lists not seen in real output (e.g. ["create","forget"]) -> exit 2.
 - `output_changes` and `resource_drift` are deliberately not checked in v0.1.
 - The GitHub Actions workflows have not run on GitHub; the example workflow's

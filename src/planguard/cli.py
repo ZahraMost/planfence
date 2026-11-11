@@ -25,11 +25,15 @@ EXIT_ERROR = 2
 
 
 def _safe(text: str | None) -> str:
-    """Escape non-printable characters so untrusted addresses cannot inject
-    terminal escape sequences or fake output lines."""
+    """Return pure printable ASCII: escape control and non-ASCII characters so
+    untrusted addresses cannot inject terminal escape sequences or fake output
+    lines, and so printing can never raise UnicodeEncodeError."""
     if text is None:
         return "-"
-    return "".join(ch if ch.isprintable() else ch.encode("unicode_escape").decode("ascii") for ch in text)
+    return "".join(
+        ch if (ch.isascii() and ch.isprintable()) else ch.encode("unicode_escape").decode("ascii")
+        for ch in text
+    )
 
 
 def _text_line(v: Violation) -> str:
@@ -60,8 +64,23 @@ def _json_obj(v: Violation) -> dict:
     return obj
 
 
+class _ArgExit(Exception):
+    """argparse wanted to exit (help: 0, usage error: 2)."""
+
+    def __init__(self, status: int):
+        super().__init__(status)
+        self.status = status
+
+
+class _Parser(argparse.ArgumentParser):
+    def exit(self, status=0, message=None):  # never raise SystemExit from inside main()
+        if message:
+            _write(sys.stderr, message)
+        raise _ArgExit(status)
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    ap = argparse.ArgumentParser(
+    ap = _Parser(
         prog="planguard",
         description="Check a Terraform/OpenTofu plan (terraform show -json output) against a contract.",
         allow_abbrev=False,
@@ -72,27 +91,26 @@ def _build_parser() -> argparse.ArgumentParser:
     return ap
 
 
+def _write(stream, text: str) -> bool:
+    """Write and flush; report failure instead of raising (BrokenPipeError, UnicodeEncodeError, ...)."""
+    try:
+        stream.write(text)
+        stream.flush()
+        return True
+    except Exception:
+        return False
+
+
 def _report_error(fmt: str, message: str) -> int:
-    print(f"planguard: error: {message}", file=sys.stderr)
+    _write(sys.stderr, f"planguard: error: {_safe(message)}\n")
     if fmt == "json":
-        print(json.dumps({"result": "error", "message": message}))
+        _write(sys.stdout, json.dumps({"result": "error", "message": message}) + "\n")
     return EXIT_ERROR
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)  # argparse exits with 2 on bad usage
-    try:
-        config = load_config(args.config)
-        plan = load_plan(args.plan)
-        violations = check(plan.changes, config)
-        checked = sum(1 for c in plan.changes if c.is_change)
-    except (PlanError, ConfigError) as exc:
-        return _report_error(args.fmt, str(exc))
-    except Exception as exc:  # fail closed on anything unexpected
-        return _report_error(args.fmt, f"internal error ({type(exc).__name__})")
-
-    if args.fmt == "json":
-        print(
+def _render(fmt: str, violations: list[Violation], checked: int) -> str:
+    if fmt == "json":
+        return (
             json.dumps(
                 {
                     "result": "fail" if violations else "pass",
@@ -100,11 +118,36 @@ def main(argv: list[str] | None = None) -> int:
                     "violations": [_json_obj(v) for v in violations],
                 }
             )
+            + "\n"
         )
-    elif violations:
-        for v in violations:
-            print(_text_line(v))
-        print(f"planguard: FAIL - {len(violations)} violation(s)")
+    if violations:
+        lines = [_text_line(v) for v in violations]
+        lines.append(f"planguard: FAIL - {len(violations)} violation(s)")
     else:
-        print(f"planguard: OK - {checked} change(s) checked, all enabled rules passed")
+        lines = [f"planguard: OK - {checked} change(s) checked, all enabled rules passed"]
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Always returns 0, 1 or 2; never raises for ordinary failures."""
+    fmt = "text"
+    try:
+        args = _build_parser().parse_args(argv)
+        fmt = args.fmt
+        config = load_config(args.config)
+        plan = load_plan(args.plan)
+        violations = check(plan.changes, config)
+        checked = sum(1 for c in plan.changes if c.is_change)
+        output = _render(fmt, violations, checked)
+    except _ArgExit as exc:
+        return exc.status if exc.status in (0, EXIT_ERROR) else EXIT_ERROR
+    except (PlanError, ConfigError) as exc:
+        return _report_error(fmt, str(exc))
+    except Exception as exc:  # fail closed on anything unexpected
+        return _report_error(fmt, f"internal error ({type(exc).__name__})")
+
+    # Result is decided; if it cannot be delivered, that is an error (2), never 0 or 1.
+    if not _write(sys.stdout, output):
+        _write(sys.stderr, "planguard: error: could not write output\n")
+        return EXIT_ERROR
     return EXIT_VIOLATIONS if violations else EXIT_OK

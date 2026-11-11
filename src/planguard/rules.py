@@ -8,6 +8,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from planguard.config import Config
+    from planguard.parser import Change
 
 SEVERITY_ERROR = "error"
 SEVERITY_CRITICAL = "critical"
@@ -30,14 +35,14 @@ class Violation:
         return (self.address or "", self.deposed or "", self.rule, self.type or "", self.previous_address or "")
 
 
-def _from_change(rule: str, severity: str, change) -> Violation:
+def _from_change(rule: str, severity: str, change: Change) -> Violation:
     return Violation(
         rule, severity, change.address, change.type, change.action_label, change.deposed,
         previous_address=change.previous_address,
     )
 
 
-def no_delete(changes: Iterable) -> list[Violation]:
+def no_delete(changes: Iterable[Change]) -> list[Violation]:
     """actions is exactly ["delete"] (a replacement or forget is not a delete)."""
     return sorted(
         (_from_change("no-delete", SEVERITY_ERROR, c) for c in changes if c.is_delete),
@@ -45,7 +50,7 @@ def no_delete(changes: Iterable) -> list[Violation]:
     )
 
 
-def no_replace(changes: Iterable) -> list[Violation]:
+def no_replace(changes: Iterable[Change]) -> list[Violation]:
     """actions contains both "delete" and "create"."""
     return sorted(
         (_from_change("no-replace", SEVERITY_ERROR, c) for c in changes if c.is_replace),
@@ -116,14 +121,14 @@ class AddressMatcher:
         return any(glob_match(p, text) for p in self._generic)
 
 
-def _scope_ok(matcher: AddressMatcher, change) -> bool:
+def _scope_ok(matcher: AddressMatcher, change: Change) -> bool:
     """A moved entry must be allowlisted at BOTH its new and its previous address."""
     return matcher.matches(change.address) and (
         change.previous_address is None or matcher.matches(change.previous_address)
     )
 
 
-def scope(changes: Iterable, allow: Iterable[str]) -> list[Violation]:
+def scope(changes: Iterable[Change], allow: Iterable[str]) -> list[Violation]:
     """Every change must match an allowed pattern; so must every move (even a no-op one).
 
     no-op and read entries that are not moves are ignored. A moved entry passes only if both
@@ -140,7 +145,7 @@ def scope(changes: Iterable, allow: Iterable[str]) -> list[Violation]:
     )
 
 
-def stateful_protect(changes: Iterable, stateful_types: Iterable[str]) -> list[Violation]:
+def stateful_protect(changes: Iterable[Change], stateful_types: Iterable[str]) -> list[Violation]:
     """delete, replace or forget of a configured stateful type is critical.
 
     Types are matched exactly (no wildcards, case-sensitive).
@@ -157,7 +162,7 @@ def stateful_protect(changes: Iterable, stateful_types: Iterable[str]) -> list[V
 
 
 def budget(
-    changes: Iterable,
+    changes: Iterable[Change],
     max_changes: int | None,
     max_creates_per_type: dict[str, int],
 ) -> list[Violation]:
@@ -184,7 +189,7 @@ def budget(
     return sorted(out, key=lambda v: v.sort_key)
 
 
-def check(changes: Iterable, config) -> list[Violation]:
+def check(changes: Iterable[Change], config: Config) -> list[Violation]:
     """Run every enabled rule; return all violations in deterministic order."""
     changes = list(changes)
     out: list[Violation] = []

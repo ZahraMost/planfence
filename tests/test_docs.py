@@ -228,3 +228,10 @@ def test_claude_md_hard_constraints_name_the_only_downloadable_providers():
         assert provider in text
     fixtures = (ROOT / "tests" / "fixtures" / "README.md").read_text(encoding="utf-8")
     assert "Providers downloaded" in fixtures
+
+
+def test_quality_gates_documented():
+    for name in ("README.md", "CLAUDE.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        assert "ruff check src" in text and "mypy" in text, name
+        assert "dev" in text.lower()

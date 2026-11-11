@@ -33,7 +33,7 @@ def _silence_stdout() -> None:
         pass
 
 
-def run(argv=None) -> int:
+def run(argv: list[str] | None = None) -> int:
     """Run planguard and return an exit code that is always 0, 1 or 2."""
     try:
         from planguard import cli  # imported here so import-time failures are caught

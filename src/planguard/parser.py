@@ -10,6 +10,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, TypeGuard
 
 DEFAULT_MAX_BYTES = 128 * 1024 * 1024
 MAX_STRING_LENGTH = 4096  # characters; applies to resource_changes address, type and deposed
@@ -89,7 +90,7 @@ class Plan:
     changes: tuple[Change, ...]  # every resource_changes entry, sorted
 
 
-def _reject_duplicate_keys(pairs):
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     obj = {}
     for key, value in pairs:
         if key in obj:
@@ -98,7 +99,7 @@ def _reject_duplicate_keys(pairs):
     return obj
 
 
-def _is_nonempty_str(value: object) -> bool:
+def _is_nonempty_str(value: object) -> TypeGuard[str]:
     return isinstance(value, str) and value != ""
 
 
@@ -147,7 +148,7 @@ def _parse_change(index: int, item: object) -> Change:
     return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed, previous_address=previous)
 
 
-def _refuse_state_only(data: dict, changes: list[Change]) -> None:
+def _refuse_state_only(data: dict[str, Any], changes: list[Change]) -> None:
     """state_only_plans = "refuse": a plan with no resource changes whose only effects are moves,
     output changes or resource drift is refused. Plans that change resources are never refused here."""
     if any(c.is_change for c in changes):

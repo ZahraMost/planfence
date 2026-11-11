@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import NoReturn, TextIO
 
 from planguard.config import ConfigError, load_config
 from planguard.parser import PlanError, load_plan
@@ -51,8 +52,8 @@ def _text_line(v: Violation) -> str:
     return line
 
 
-def _json_obj(v: Violation) -> dict:
-    obj = {
+def _json_obj(v: Violation) -> dict[str, str | int | None]:
+    obj: dict[str, str | int | None] = {
         "rule": v.rule,
         "severity": v.severity,
         "address": v.address,
@@ -76,7 +77,7 @@ class _ArgExit(Exception):
 
 
 class _Parser(argparse.ArgumentParser):
-    def exit(self, status=0, message=None):  # never raise SystemExit from inside main()
+    def exit(self, status: int = 0, message: str | None = None) -> NoReturn:  # never raise SystemExit in main()
         if message:
             _write(sys.stderr, message)
         raise _ArgExit(status)
@@ -108,7 +109,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def _write(stream, text: str) -> bool:
+def _write(stream: TextIO, text: str) -> bool:
     """Write and flush; report failure instead of raising (BrokenPipeError, UnicodeEncodeError, ...)."""
     try:
         stream.write(text)

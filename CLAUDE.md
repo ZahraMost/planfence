@@ -253,8 +253,9 @@ planguard sees only the plan JSON, not the command line.
 - All scripts must be cross-platform (Python, not bash/PowerShell).
 - Never use cloud providers or real credentials. The ONLY providers fixture generation may
   download through `init` are the non-cloud hashicorp/random, hashicorp/local and hashicorp/null;
-  record their exact versions in tests/fixtures/README.md when a fixture uses one (none does so
-  far: every fixture uses only the built-in terraform_data resource and terraform_remote_state).
+  record their exact versions in tests/fixtures/README.md when a fixture uses one. Only
+  providers/terraform/local_file_replace does (hashicorp/local and hashicorp/random; versions in its
+  PROVIDERS.txt); every other fixture uses only the built-in terraform_data and terraform_remote_state.
 - Never run `terraform apply` or `terraform destroy` anywhere, EXCEPT inside
   throwaway temp directories created by scripts/make_fixtures.py that contain
   only the built-in `terraform_data` resource (local state, creates nothing real).

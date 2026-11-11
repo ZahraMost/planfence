@@ -99,3 +99,142 @@ def test_readme_starts_with_the_status_block_before_any_heading():
     assert "'this plan stays inside the contract you wrote', nothing more" in block
     assert "(see [What planguard does NOT claim](#what-planguard-does-not-claim))" in block
     assert "## What planguard does NOT claim" in "\n".join(lines)
+
+
+# ---- 4. the real plan example (Terraform 1.17.2, hashicorp/local + hashicorp/random) ----------------------------
+
+EXPECTED_OUTPUT = (
+    "[error] no-replace local_file.hello (local_file) delete,create\n"
+    "planguard: FAIL - 1 violation(s)\n"
+)
+
+
+def load_make_fixtures():
+    spec = importlib.util.spec_from_file_location("make_fixtures", ROOT / "scripts" / "make_fixtures.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["make_fixtures"] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop("make_fixtures", None)
+    return module
+
+
+def test_the_real_provider_fixture_is_a_content_replacement():
+    doc = json.loads((PROVIDERS / "local_file_replace.json").read_text(encoding="utf-8"))
+    entries = {r["address"]: r for r in doc["resource_changes"]}
+    assert set(entries) == {"local_file.hello", "random_pet.name"}
+    hello = entries["local_file.hello"]
+    assert hello["change"]["actions"] == ["delete", "create"]
+    assert hello["action_reason"] == "replace_because_cannot_update"
+    assert hello["change"]["replace_paths"] == [["content"]]
+    assert entries["random_pet.name"]["change"]["actions"] == ["no-op"]
+    assert doc["terraform_version"] == "1.17.2" and doc["format_version"] == "1.2"
+    assert {r["provider_name"] for r in entries.values()} == {
+        "registry.terraform.io/hashicorp/local", "registry.terraform.io/hashicorp/random"}
+
+
+def test_exact_planguard_output_on_the_real_plan(capsys, tmp_path):
+    cfg = tmp_path / "planguard.toml"
+    cfg.write_text('enabled_rules = ["no-replace"]\n', encoding="utf-8")
+    code = cli.main([str(PROVIDERS / "local_file_replace.json"), "--config", str(cfg)])
+    assert code == 1
+    assert capsys.readouterr().out == EXPECTED_OUTPUT
+
+
+def test_a_replacement_is_not_a_plain_delete(capsys, tmp_path):
+    cfg = tmp_path / "planguard.toml"
+    cfg.write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")
+    assert cli.main([str(PROVIDERS / "local_file_replace.json"), "--config", str(cfg)]) == 0
+    capsys.readouterr()
+
+
+def test_provider_versions_are_recorded_next_to_the_fixture():
+    text = (PROVIDERS / "PROVIDERS.txt").read_text(encoding="utf-8")
+    assert "terraform_version: 1.17.2" in text
+    assert re.search(r"registry\.terraform\.io/hashicorp/local v\d+\.\d+\.\d+", text)
+    assert re.search(r"registry\.terraform\.io/hashicorp/random v\d+\.\d+\.\d+", text)
+
+
+def readme_section(title):
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    start = text.index(f"\n## {title}\n")
+    end = text.find("\n## ", start + 1)
+    return text[start:end if end != -1 else None]
+
+
+def fences(section):
+    return re.findall(r"```(\w*)\n(.*?)```", section, re.S)
+
+
+def test_readme_real_plan_example_text():
+    section = readme_section("Real plan example")
+    for needle in ("Terraform 1.17.2", "hashicorp/local", "hashicorp/random", "no cloud account",
+                   "-/+", "delete,create", "no-replace"):
+        assert needle in section, needle
+    assert EXPECTED_OUTPUT in section
+    recorded = (PROVIDERS / "PROVIDERS.txt").read_text(encoding="utf-8")
+    for version in re.findall(r"hashicorp/\w+ (v\d+\.\d+\.\d+)", recorded):
+        assert version in section, f"provider version {version} is not stated in the README"
+
+
+def test_readme_config_is_the_config_that_produced_the_plan():
+    module = load_make_fixtures()
+    scenario = module.SCENARIOS["local_file_replace"]
+    blocks = dict(fences(readme_section("Real plan example")))
+    hcl = [body for lang, body in fences(readme_section("Real plan example")) if lang == "hcl"]
+    assert hcl and hcl[0].strip() == scenario.planned["main.tf"].strip()
+    assert 'content  = "hello"' in scenario.baseline["main.tf"]  # what the earlier apply created
+    assert 'enabled_rules = ["no-replace"]' in blocks["toml"]
+
+
+def test_readme_plan_excerpt_is_real_terraform_output():
+    excerpt = [body for lang, body in fences(readme_section("Real plan example")) if lang == "text"][0]
+    real_lines = {ln.rstrip() for ln in (PROVIDERS / "local_file_replace.txt").read_text(encoding="utf-8").splitlines()}
+    for line in excerpt.splitlines():
+        if line.strip():
+            assert line.rstrip() in real_lines, f"not in the real terraform output: {line!r}"
+    assert "-/+ resource \"local_file\" \"hello\"" in excerpt
+
+
+# ---- 5. privacy ----------------------------------------------------------------------------------------------
+
+# built from pieces so that this file does not contain the strings it forbids
+FORBIDDEN = [
+    "mostat" + "abi", "yah" + "oo", "/Us" + "ers/", "/ho" + "me/", "fritz" + ".box", "zah" + "ras", "Startup" + " Founder",
+    "var/fol" + "ders", "private/" + "tmp", "claude-" + "501",
+]
+ALLOWED_EMAIL_DOMAINS = {"example.invalid", "example.com"}
+EMAIL = re.compile(r"[\w.+-]+@([\w-]+(?:\.[\w-]+)*\.[A-Za-z]{2,})\b")  # a real TLD: not git@v0.1.0
+DOC_SUFFIXES = {".md", ".yml", ".yaml", ".toml", ".txt"}
+MENTION = re.compile(r"(?<![\w./@+-])@([A-Za-z0-9][\w-]*)")
+
+
+@needs_git
+def test_no_personal_data_in_tracked_files():
+    found = []
+    for path in tracked_files():
+        text = read_text_or_none(path)
+        if text is None:
+            continue
+        rel = path.relative_to(ROOT)
+        for needle in FORBIDDEN:
+            if needle.lower() in text.lower():
+                found.append(f"{rel}: contains {needle!r}")
+        for m in EMAIL.finditer(text):
+            if m.group(1).lower() not in ALLOWED_EMAIL_DOMAINS:
+                found.append(f"{rel}: e-mail address with domain {m.group(1)}")
+    assert found == []
+
+
+@needs_git
+def test_the_only_user_mentioned_in_tracked_files_is_zahramost():
+    found = []
+    for path in tracked_files():
+        text = read_text_or_none(path)
+        if text is None or not (path.suffix in DOC_SUFFIXES or path.name == "CODEOWNERS"):
+            continue  # docs and config only: Python decorators such as @property are not mentions
+        for m in MENTION.finditer(text):
+            if m.group(1) != "ZahraMost" and path.relative_to(ROOT).parts[0] != "tests":
+                found.append(f"{path.relative_to(ROOT)}: @{m.group(1)}")
+    assert found == []

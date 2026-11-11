@@ -50,6 +50,67 @@ Options: `--config PATH` (default `./planguard.toml`; a missing file is an error
 | 1 | at least one rule violated |
 | 2 | anything else: unreadable or invalid plan, unknown `format_version`, errored or incomplete plan, bad config, bad arguments, a crash, or failure to write the output (closed pipe, full disk) |
 
+## Real plan example
+
+This is an actual run, not a mock-up. It was produced with **Terraform 1.17.2** and the providers
+`hashicorp/local` (v2.9.1) and `hashicorp/random` (v3.9.1); no cloud account is involved (the only
+file written is a local text file in a throwaway directory). The plan JSON and Terraform's own text
+output are kept in [tests/fixtures/providers/terraform/](tests/fixtures/providers/terraform/) together with the
+exact provider versions.
+
+The configuration (the first apply created the file with `content = "hello"`; the plan below changes it):
+
+```hcl
+terraform {
+  required_providers {
+    local  = { source = "hashicorp/local" }
+    random = { source = "hashicorp/random" }
+  }
+}
+
+resource "random_pet" "name" {
+  length = 2
+}
+
+resource "local_file" "hello" {
+  content  = "hello, world"
+  filename = "${random_pet.name.id}.txt"
+}
+```
+
+Changing the `content` of a `local_file` cannot be done in place, so Terraform plans a replacement
+(`-/+`: destroy, then create). The relevant part of `terraform plan` (the derived hash attributes
+that also change are left out here):
+
+```text
+  # local_file.hello must be replaced
+-/+ resource "local_file" "hello" {
+      ~ content              = "hello" -> "hello, world" # forces replacement
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+```
+
+In `terraform show -json` that resource is `["delete","create"]` (with `action_reason`
+`replace_because_cannot_update`), and the `random_pet` is a no-op. With this `planguard.toml`:
+
+```toml
+enabled_rules = ["no-replace"]
+```
+
+planguard reports:
+
+```console
+$ terraform show -json tfplan > plan.json
+$ planguard plan.json --config planguard.toml
+[error] no-replace local_file.hello (local_file) delete,create
+planguard: FAIL - 1 violation(s)
+```
+
+and exits with status 1. A replacement is not a plain delete, so `no-delete` alone would not have
+fired: keep `no-replace` enabled if replacements are not allowed.
+
 ## Rules (v0.1)
 
 | Rule id | Violated when | Severity |

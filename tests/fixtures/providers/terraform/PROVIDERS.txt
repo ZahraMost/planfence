@@ -1,0 +1,3 @@
+terraform_version: 1.17.2
+registry.terraform.io/hashicorp/local v2.9.1
+registry.terraform.io/hashicorp/random v3.9.1

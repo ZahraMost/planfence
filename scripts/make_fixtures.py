@@ -144,6 +144,29 @@ def with_output(value: str, output: bool = True) -> str:
     return f'resource "terraform_data" "example" {{\n  input = "{value}"\n}}\n\n{out}'
 
 
+# Providers: ONLY the non-cloud hashicorp/local and hashicorp/random may be downloaded (CLAUDE.md).
+LOCAL_PROVIDERS = (
+    "terraform {\n"
+    "  required_providers {\n"
+    '    local  = { source = "hashicorp/local" }\n'
+    '    random = { source = "hashicorp/random" }\n'
+    "  }\n"
+    "}\n\n"
+)
+
+
+def hello_file(content: str) -> str:
+    """A random pet and a local file; changing `content` forces the file to be replaced."""
+    return (
+        LOCAL_PROVIDERS
+        + 'resource "random_pet" "name" {\n  length = 2\n}\n\n'
+        + 'resource "local_file" "hello" {\n'
+        + f'  content  = "{content}"\n'
+        + '  filename = "${random_pet.name.id}.txt"\n'
+        + "}\n"
+    )
+
+
 @dataclass
 class Scenario:
     planned: Files
@@ -153,6 +176,8 @@ class Scenario:
     plan_args: tuple[str, ...] = ()  # extra arguments for `plan` (e.g. -target=...)
     producer_update: Files | None = None  # applied to ./producer AFTER the baseline apply (real drift)
     default: bool = True  # generated when no scenario names are given
+    providers: bool = False  # uses downloadable providers: `init` needs the network (see CLAUDE.md)
+    text: bool = False  # also store `show -no-color` (the human-readable plan) as <name>.txt
     tools: tuple[str, ...] = ()  # binaries that support it (empty = all), e.g. ("tofu",)
     extra: Files = field(default_factory=dict)  # files present in both phases
 
@@ -220,6 +245,11 @@ SCENARIOS: dict[str, Scenario] = {
         baseline={"main.tf": with_output("a")}, planned={"main.tf": with_output("b")}, default=False),
     "output_added_only": Scenario(
         baseline={"main.tf": with_output("a", output=False)}, planned={"main.tf": with_output("a")}, default=False),
+    # real providers (network for `init`); stored in tests/fixtures/providers/<tool>/
+    "local_file_replace": Scenario(
+        baseline={"main.tf": hello_file("hello")}, planned={"main.tf": hello_file("hello, world")},
+        default=False, providers=True, text=True,
+    ),
     "two_exclude": Scenario(  # Terraform 1.17.2 has no -exclude; OpenTofu 1.13.9 does
         baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
         plan_args=("-exclude=terraform_data.b",), default=False, tools=("tofu",),
@@ -270,8 +300,16 @@ def init_apply(binary: str, work: Path, env: dict[str, str]) -> None:
     run(binary, ["apply", "-auto-approve", "-input=false", "-no-color"], work, env)
 
 
-def make_scenario(binary: str, name: str, sc: Scenario) -> dict:
+def provider_lines(binary: str, work: Path, env: dict[str, str]) -> list[str]:
+    """`<tool> version` after init: the tool version and the exact provider versions selected."""
+    out = run(binary, ["version"], work, env)
+    return [ln.strip() for ln in out.splitlines() if ln.startswith(("Terraform v", "OpenTofu v", "+ provider"))]
+
+
+def make_scenario(binary: str, name: str, sc: Scenario) -> tuple[dict, dict]:
+    """Returns (plan JSON, extras) where extras may hold `text` (human plan) and `providers` (versions)."""
     env = dict(os.environ, CHECKPOINT_DISABLE="1", TF_IN_AUTOMATION="1")
+    extras: dict = {}
     with tempfile.TemporaryDirectory(prefix=f"planguard-{name}-") as tmp:
         work = Path(tmp)
         if sc.producer is not None:
@@ -287,10 +325,14 @@ def make_scenario(binary: str, name: str, sc: Scenario) -> dict:
             run(binary, ["apply", "-auto-approve", "-input=false", "-no-color"], work / "producer", env)
         write_files(work, sc.planned)
         run(binary, ["init", "-input=false", "-no-color"], work, env)
+        if sc.providers:
+            extras["providers"] = provider_lines(binary, work, env)
         run(binary, ["plan", "-input=false", "-no-color", "-out=tfplan", *sc.plan_args], work, env)
         raw = run(binary, ["show", "-json", "tfplan"], work, env)
+        if sc.text:
+            extras["text"] = run(binary, ["show", "-no-color", "tfplan"], work, env)
     # temp dir (state, plan, .terraform) is deleted on leaving the `with` block
-    return json.loads(raw)
+    return json.loads(raw), extras
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -311,9 +353,16 @@ def main(argv: list[str] | None = None) -> int:
     for name in names:
         if SCENARIOS[name].tools and tool not in SCENARIOS[name].tools:
             ap.error(f"scenario {name!r} needs one of {SCENARIOS[name].tools}, not {tool!r}")
-        data = make_scenario(binary, name, SCENARIOS[name])
+        data, extras = make_scenario(binary, name, SCENARIOS[name])
         out = out_dir / f"{name}.json"
         out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        if "text" in extras:
+            (out_dir / f"{name}.txt").write_text(extras["text"], encoding="utf-8")
+        if "providers" in extras:  # exact versions that were downloaded (recorded, not pinned)
+            tool_line, *prov = extras["providers"]
+            version = tool_line.split()[-1].lstrip("v")
+            lines = [f"terraform_version: {version}", *(ln.removeprefix("+ provider ") for ln in prov)]
+            (out_dir / "PROVIDERS.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
         summary = [(rc.get("address"), rc["change"]["actions"]) for rc in data.get("resource_changes", [])]
         print(f"{name:15s} -> {out}  {summary if 'resource_changes' in data else 'NO resource_changes KEY'}")
     return 0

@@ -1,0 +1,21 @@
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # local_file.hello must be replaced
+-/+ resource "local_file" "hello" {
+      ~ content              = "hello" -> "hello, world" # forces replacement
+      ~ content_base64sha256 = "LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=" -> (known after apply)
+      ~ content_base64sha512 = "m3HSJL1i83hdltRq0+o9czGb+8KJDKra4t/3JRlnPKcjI8PZm6XBHXx6zG4UuMXaDEZjR1wuXDre9G9zvN7AQw==" -> (known after apply)
+      ~ content_md5          = "5d41402abc4b2a76b9719d911017c592" -> (known after apply)
+      ~ content_sha1         = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d" -> (known after apply)
+      ~ content_sha256       = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824" -> (known after apply)
+      ~ content_sha512       = "9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043" -> (known after apply)
+      ~ id                   = "aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.

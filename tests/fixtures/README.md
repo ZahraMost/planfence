@@ -2,10 +2,22 @@
 
 ## Providers downloaded
 
-None. Every generated fixture uses only the built-in `terraform_data` resource and the built-in
-`terraform_remote_state` data source (`terraform.io/builtin/terraform`), so `init` never downloaded a
-provider. If a future fixture needs one, only the non-cloud hashicorp/random, hashicorp/local or
-hashicorp/null may be used and their exact versions must be recorded here.
+Only one fixture uses downloadable providers: `providers/terraform/local_file_replace` (Terraform 1.17.2),
+which needs the non-cloud `hashicorp/local` and `hashicorp/random`. The exact versions that `init`
+selected are recorded in `providers/terraform/PROVIDERS.txt` (v2.9.1 and v3.9.1); they are recorded, not
+pinned, so regenerating later may select newer ones. Every other fixture uses only the built-in
+`terraform_data` resource and the built-in `terraform_remote_state` data source
+(`terraform.io/builtin/terraform`), so their `init` downloads nothing. Only the non-cloud hashicorp/random,
+hashicorp/local or hashicorp/null may ever be used, and their exact versions must be recorded here.
+
+## providers/ (generated): a real replacement with real providers
+
+`providers/terraform/local_file_replace.json` (plus `.txt`, Terraform's human-readable plan, and
+`PROVIDERS.txt`) is the plan shown in the README's "Real plan example": `local_file.hello` ->
+`["delete","create"]` (`replace_because_cannot_update`, `replace_paths: [["content"]]`) and `random_pet.name`
+-> `["no-op"]`. Generated with
+`scripts/make_fixtures.py --binary <terraform> --out tests/fixtures/providers/terraform local_file_replace`
+(non-default scenario; the apply of the baseline runs only inside the throwaway directory).
 
 ## real/ (generated, not hand-edited)
 

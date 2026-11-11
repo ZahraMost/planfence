@@ -10,7 +10,7 @@ permissions:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10  # headroom: the packaging test builds a wheel and creates a venv on every leg
     strategy:
       fail-fast: false
       matrix:

@@ -105,3 +105,47 @@ def stateful_protect(changes: Iterable, stateful_types: Iterable[str]) -> list[V
         ),
         key=lambda v: v.sort_key,
     )
+
+
+def budget(
+    changes: Iterable,
+    max_changes: int | None,
+    max_creates_per_type: dict[str, int],
+) -> list[Violation]:
+    """Total changes and per-type creates must stay within limits.
+
+    A change is any entry that is not no-op / read. A replacement counts as one
+    change and one create for its type. Aggregate violations carry no address.
+    """
+    total = 0
+    creates: dict[str, int] = {}
+    for c in changes:
+        if not c.is_change:
+            continue
+        total += 1
+        if c.is_create:
+            creates[c.type] = creates.get(c.type, 0) + 1
+    out: list[Violation] = []
+    if max_changes is not None and total > max_changes:
+        out.append(Violation("budget", SEVERITY_ERROR, None, None, None))
+    for rtype, limit in max_creates_per_type.items():
+        if creates.get(rtype, 0) > limit:
+            out.append(Violation("budget", SEVERITY_ERROR, None, rtype, "create"))
+    return sorted(out, key=lambda v: v.sort_key)
+
+
+def check(changes: Iterable, config) -> list[Violation]:
+    """Run every enabled rule; return all violations in deterministic order."""
+    changes = list(changes)
+    out: list[Violation] = []
+    if "no-delete" in config.enabled:
+        out += no_delete(changes)
+    if "no-replace" in config.enabled:
+        out += no_replace(changes)
+    if "scope" in config.enabled:
+        out += scope(changes, config.allow)
+    if "stateful-protect" in config.enabled:
+        out += stateful_protect(changes, config.stateful_types)
+    if "budget" in config.enabled:
+        out += budget(changes, config.max_changes, config.max_creates_per_type)
+    return sorted(out, key=lambda v: v.sort_key)

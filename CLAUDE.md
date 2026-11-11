@@ -27,15 +27,28 @@ Hardening (tested in tests/test_exit_hardening.py):
 - cli.main() decides the result first, then writes it. It never raises for
   ordinary failures and returns only 0, 1 or 2 (argparse help -> 0, usage error -> 2).
 
-## Input facts (verified against Terraform 1.17.2, see tests/fixtures/README.md)
+## Input facts (verified against Terraform 1.17.2 and OpenTofu 1.13.9, see tests/fixtures/README.md)
 - Top level: `format_version`, `errored`, `complete`, `resource_changes` (list)
 - `format_version`: accept any string matching `^1\.\d+$` (seen: "1.2").
   Anything else -> exit 2. Minor versions only add backward-compatible
   properties, so IGNORE unknown properties; reject other major versions.
-  OpenTofu's format_version is NOT verified yet.
-- `errored` and `complete` must be present booleans. Exit 2 if `errored` is
-  true or `complete` is not true. Do NOT require `applyable` (it is false for
-  a valid no-op plan). These keys also tell a plan file apart from a state file.
+  Verified with OpenTofu 1.13.9 and Terraform 1.17.2 on 16 scenarios: both give
+  format_version "1.2" and identical `actions` lists (tests/fixtures/opentofu vs real).
+- plan_source (config key, default "terraform"; anything else -> exit 2):
+  - "terraform" (strict): `errored` and `complete` must be present booleans.
+    Exit 2 if `errored` is true or `complete` is not true.
+  - "opentofu": OpenTofu 1.13.9's plan JSON has no `complete` and no `applyable`.
+    `errored` is still required (boolean, false). `complete` is optional; if
+    present it must be boolean true (false or wrong type -> exit 2).
+  - Both modes: do NOT require `applyable` (false for a valid no-op plan). `errored`
+    (and `complete`) also tell a plan file apart from a state file.
+  - The mode is passed explicitly: config -> load_plan(path, plan_source=...) -> parse_plan.
+  - Terraform sets `complete: false` for plans made with -target (verified with a
+    real fixture, tests/fixtures/partial/terraform). OpenTofu `-target` and
+    `-exclude` plans carry NO signal at all (same keys and flags as a full plan;
+    tests/fixtures/partial/opentofu), so OpenTofu partial plans cannot be
+    recognised: documented limitation. The trusted workflow must run `tofu plan`
+    itself without -target/-exclude (planguard cannot enforce it).
 - `resource_changes` is ABSENT (not empty) when nothing is planned (verified:
   empty config, and data sources read at plan time). Treat absent as zero
   changes ONLY when format_version is known, errored is false and complete
@@ -91,6 +104,7 @@ Each rule needs: one failing fixture, one passing fixture, unit tests.
 ## Config: planguard.toml (tomllib, strict)
 ```toml
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
+plan_source = "terraform"       # optional: "terraform" (default, strict) | "opentofu"
 
 [scope]                         # required iff "scope" is enabled
 allow = ["module.app.*", 'aws_instance.web["blue"]']
@@ -158,7 +172,10 @@ aws_instance = 2
   human review, not a replacement for it.
 
 ## NOT verified / known gaps (keep this list honest)
-- OpenTofu: `format_version` and action lists are NOT verified (only Terraform 1.17.2).
+- OpenTofu: verified only for 1.13.9 and only on the 16 terraform_data scenarios (same as
+  Terraform 1.17.2 except no `complete`/`applyable`). OpenTofu partial plans (-target /
+  -exclude) cannot be recognised (no signal): documented limitation. Other OpenTofu or
+  Terraform versions and real providers are unverified.
 - `deposed`: supported (sorting, display, all rules) but no real plan fixture
   has one; tests use hand-built plans.
 - Python 3.11 and 3.12: untested locally (only 3.13). CI matrix is the first check.
@@ -166,7 +183,7 @@ aws_instance = 2
   only `actions`; a pure move may appear as a no-op/update.
 - `action_invocations` and `deferred_changes`: the exit-2 rule is tested only
   with HAND-MADE fixtures (tests/fixtures/handmade/); the real JSON shape of
-  their entries is unverified (not producible with Terraform 1.17.2 + built-in
+  their entries is unverified (not producible with Terraform 1.17.2 / OpenTofu 1.13.9 + built-in
   resources). `importing` IS verified with real fixtures.
 - Action lists not seen in real output (e.g. ["create","forget"]) -> exit 2.
 - `output_changes` and `resource_drift` are deliberately not checked in v0.1.
@@ -208,7 +225,7 @@ or any network use other than `pip install` and Terraform's own init.
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N
   sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
-- scripts/mutation_check.py: 75 source mutations run against temp copies of src/ (never
+- scripts/mutation_check.py: 89 source mutations run against temp copies of src/ (never
   edits src/). Every mutant must be KILLED or listed in its EQUIVALENT dict with a
   reason; add a test for any survivor. Run it after changing rules/parser/config/cli.
 - Tests honour PLANGUARD_SRC (see tests/conftest.py SRC) so subprocess tests can

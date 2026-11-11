@@ -76,6 +76,7 @@ See [examples/planguard.toml](examples/planguard.toml).
 
 ```toml
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
+# plan_source = "opentofu"   # optional, default "terraform"; see the OpenTofu section
 
 [scope]
 allow = ["module.app.*", 'aws_instance.web["blue"]']
@@ -131,6 +132,34 @@ In JSON, budget violations (and only those) have integer `count` and `limit` fie
 With `--format json`, errors (exit 2) also print `{"result": "error", "message": "..."}` on stdout
 and the message on stderr.
 
+## OpenTofu
+
+Set `plan_source = "opentofu"` in the contract (`planguard.toml`; put it in the protected,
+base-branch copy, see "Using planguard safely in CI"). The default is `"terraform"`, which is
+exactly the strict behaviour described above. Any other value is exit 2.
+
+Why: **OpenTofu's plan JSON has no `complete` and no `applyable`**, while planguard's default
+mode requires `errored` and `complete` to be present booleans (Terraform sets `complete` to
+`false` for partial plans). In `"opentofu"` mode:
+
+- `errored` is still required, must be a boolean and must be false;
+- `complete` is optional: absent is fine, but if present it must be boolean `true`;
+- `applyable` is still ignored; everything else is unchanged (a state JSON without `errored`
+  is still refused, so are import blocks, `action_invocations`, `deferred_changes`, ...).
+
+```toml
+enabled_rules = ["no-delete", "scope"]
+plan_source = "opentofu"
+```
+
+**Limitation: OpenTofu partial plans cannot be recognised.** Terraform marks a plan made with
+`-target` as `complete: false`, which planguard refuses. We compared OpenTofu 1.13.9 plans made
+with `-target=...` and `-exclude=...` against the full plan of the same config: same top-level
+keys, same flags, same structure; the only differences are fewer entries (and random ids). There
+is no reliable signal, so planguard cannot tell and will judge only the resources that are in
+the plan. A trusted pipeline must therefore run `tofu plan` itself, **without `-target` or
+`-exclude`**, and apply exactly that plan. planguard cannot enforce this.
+
 ## What planguard does NOT claim
 
 planguard is a narrow guardrail, not a safety guarantee. It does **not** check:
@@ -150,15 +179,21 @@ The contract is only as good as the allowlist, stateful types and budgets you co
 
 ## Verified against
 
-Plan JSON shapes were verified with real `terraform show -json` output from **Terraform 1.17.2**
-(`format_version` "1.2") using the built-in `terraform_data` resource; see
-[tests/fixtures/README.md](tests/fixtures/README.md). **OpenTofu has not been verified.** Any
-`format_version` of the form `1.x` is accepted and unknown properties are ignored, but any action
-list not seen in real output is rejected (exit 2) rather than guessed.
+Plan JSON shapes were verified with real `show -json` output from **Terraform 1.17.2** and
+**OpenTofu 1.13.9** (both `format_version` "1.2") on **16 scenarios** using the built-in
+`terraform_data` resource: create, update, delete, replace (both action orders), no-op, forget,
+read (deferred and immediate), empty plan, `count`, `for_each`, a local module, and three
+`import` variants. The `actions` lists, `change.importing` and the presence of
+`resource_changes` are identical in both tools; the only difference is that OpenTofu's JSON has
+no `complete` and no `applyable` (see [OpenTofu](#opentofu)). Fixtures and comparison tables:
+[tests/fixtures/README.md](tests/fixtures/README.md). Any `format_version` of the form `1.x` is
+accepted and unknown properties are ignored, but any action list not seen in real output is
+rejected (exit 2) rather than guessed.
 
-Not verified: OpenTofu; plans containing `deposed` objects; `moved` blocks (planguard judges only
+Not verified: plans containing `deposed` objects; `moved` blocks (planguard judges only
 `actions` and ignores `previous_address`); the real JSON shape of `action_invocations` and
-`deferred_changes` (refused via hand-made fixtures only); Python 3.11 and 3.12
+`deferred_changes` (refused via hand-made fixtures only, neither tool could produce them with
+built-in resources); other OpenTofu/Terraform versions and providers; Python 3.11 and 3.12
 (developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](CLAUDE.md).
 
 ## Security notes
@@ -230,7 +265,7 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
-# mutation testing: applies 75 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 89 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
 

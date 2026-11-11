@@ -27,6 +27,10 @@ jobs:
           # The wrapper adds extra lines to stdout and would corrupt the JSON.
           terraform_wrapper: false
 
+      # OpenTofu users: use `tofu plan` / `tofu show -json` (e.g. opentofu/setup-opentofu), set
+      # plan_source = "opentofu" in the PROTECTED contract, and NEVER pass -target or -exclude:
+      # planguard cannot recognise an OpenTofu partial plan (Terraform marks it complete=false).
+      #
       # Provide your own provider credentials/backend config here (for example via
       # OIDC). planguard itself needs no credentials and never contacts the cloud.
       - name: Terraform plan

@@ -174,3 +174,7 @@ python3.13 -m venv .venv
 
 `scripts/make_fixtures.py` is the only place `terraform apply` is ever run, and only inside its
 own temporary directories.
+
+## License
+
+[MIT](LICENSE), copyright (c) 2026 ZahraMost.

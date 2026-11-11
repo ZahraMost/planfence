@@ -143,6 +143,20 @@ aws_instance = 2
   On exit 2 with `--format json`, stdout is `{"result": "error", "message": ...}`
   and the message is also written to stderr. Error messages never contain plan values.
 
+## Using planguard safely in CI (must stay in README too; tests/test_docs.py checks both)
+- Contract from a protected place: if the same pull request can edit planguard.toml
+  its author can weaken the contract. Load it from the base branch (the example
+  workflow uses `git show origin/<base>:planguard.toml`) or protect it with CODEOWNERS
+  and branch protection. Same for the workflow file and the planguard version.
+- Apply exactly the plan file you checked: `terraform apply tfplan` with the same
+  binary plan that `terraform show -json` converted; never re-plan between check and
+  apply (record/verify a sha256 of tfplan). Plan files can contain secrets: no artifacts.
+- planguard does not see provisioners (local-exec, remote-exec), data source side
+  effects (e.g. the `external` data source runs at plan time), or what a create actually
+  does; it never judges attribute values.
+- A pass is not an approval: exit 0 means "inside the contract", a filter in front of
+  human review, not a replacement for it.
+
 ## NOT verified / known gaps (keep this list honest)
 - OpenTofu: `format_version` and action lists are NOT verified (only Terraform 1.17.2).
 - `deposed`: supported (sorting, display, all rules) but no real plan fixture

@@ -35,19 +35,34 @@ jobs:
           terraform plan -input=false -out=tfplan
 
       - name: Plan to JSON
-        run: terraform show -json tfplan > plan.json
+        run: |
+          terraform show -json tfplan > plan.json
+          sha256sum tfplan > tfplan.sha256
 
       # Replace with your own source/version. planguard has no runtime dependencies.
       - name: Install planguard
         run: python -m pip install "git+https://github.com/YOUR-ORG/planguard.git@v0.1.0"
 
+      # SECURITY: load the contract from the BASE branch, not from the PR checkout, so the
+      # PR author cannot weaken it. (Alternatively protect planguard.toml with CODEOWNERS
+      # and branch protection.)
+      - name: Load contract from the base branch
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git show "origin/$BASE_REF:planguard.toml" > "$RUNNER_TEMP/planguard.toml"
+
       # Exit 0 = within contract, 1 = violation, 2 = plan/config not understood.
-      # Any non-zero exit fails the job (fail-closed).
+      # Any non-zero exit fails the job (fail-closed). A pass is not an approval.
       - name: Check plan against contract
-        run: planguard plan.json --config planguard.toml
+        run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"
+
+      # If a later step applies, apply EXACTLY this plan file (never re-plan):
+      #   sha256sum -c tfplan.sha256 && terraform apply tfplan
 
       # plan.json and tfplan contain attribute values (possibly secrets):
       # remove them and never upload them as artifacts.
       - name: Remove plan files
         if: always()
-        run: rm -f plan.json tfplan
+        run: rm -f plan.json tfplan tfplan.sha256

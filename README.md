@@ -169,6 +169,48 @@ Not verified: OpenTofu; plans containing `deposed` objects; `moved` blocks (plan
   strings limited to 4096 characters (longer is exit 2, the value is never echoed), duplicate JSON keys rejected, no `eval`/`exec`,
   no network access.
 
+## Using planguard safely in CI
+
+planguard only checks the plan you give it against the contract you give it. These four rules
+keep that meaningful.
+
+1. **Load the contract from a protected place.** If the same pull request can edit
+   `planguard.toml`, its author can weaken the contract (add `*` to `scope.allow`, raise the
+   budget, empty the stateful list) and the check will pass. Read the contract from the
+   **base branch**, not from the PR checkout, or protect it with **CODEOWNERS** plus
+   **branch protection** (required review by the owners, required status check). The same goes for the
+   workflow file that runs planguard and for the planguard version you install: pin it and take
+   it from a trusted source, not from the PR. See
+   [examples/github-actions/planguard-example.yml](examples/github-actions/planguard-example.yml),
+   which reads the contract with `git show origin/<base>:planguard.toml`.
+
+2. **Apply exactly the plan file you checked.** Run `terraform apply tfplan` with the same
+   binary plan file that `terraform show -json` converted, and **never re-plan between check and
+   apply**: a fresh plan is a different plan that planguard has not seen. Terraform refuses a
+   saved plan whose state has since changed (a stale plan), which is what you want. To make
+   sure the file did not change in between, record and verify a checksum:
+
+   ```sh
+   terraform plan -out=tfplan
+   terraform show -json tfplan > plan.json
+   sha256sum tfplan > tfplan.sha256
+   planguard plan.json --config "$RUNNER_TEMP/planguard.toml"   # exit 0 required
+   # later, in the apply step (same file, no new plan):
+   sha256sum -c tfplan.sha256 && terraform apply tfplan
+   ```
+
+   The binary plan and `plan.json` can contain secrets: do not publish them as artifacts.
+
+3. **Know what planguard cannot see.** It reads `resource_changes` and nothing else. It does
+   not see provisioners (for example `local-exec` or `remote-exec` commands), data source side
+   effects (the `external` data source runs a program during `terraform plan`, before planguard
+   even starts), or what a `create` actually does (a created IAM policy, a new open security
+   group, a module that does something surprising). It cannot judge attribute values at all.
+
+4. **A pass is not an approval.** Exit 0 means "this plan, as written, stays inside the
+   contract", nothing more. It is a cheap, repeatable filter that should sit *in front of* human
+   review, not replace it.
+
 ## CI
 
 Run planguard with a job timeout (e.g. `timeout-minutes: 5` in GitHub Actions) so an unexpectedly

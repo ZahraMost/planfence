@@ -28,6 +28,8 @@ CASES = [
     ({"enabled_rules": ["budget"], "budget": {"max_changes": True}}, "integer >= 0"),
     ({"enabled_rules": ["budget"], "budget": {"max_changes": -1}}, "integer >= 0"),
     ({"enabled_rules": ["budget"], "budget": {"max_creates_per_type": {"t": True}}}, "integer >= 0"),
+    ({"enabled_rules": ["no-delete"], "plan_source": "tofu"}, 'plan_source must be "terraform" or "opentofu"'),
+    ({"enabled_rules": ["no-delete"], "plan_source": 1}, 'plan_source must be "terraform" or "opentofu"'),
 ]
 
 

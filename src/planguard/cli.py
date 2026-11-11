@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         args = _build_parser().parse_args(argv)
         fmt = args.fmt
         config = load_config(args.config)
-        plan = load_plan(args.plan)
+        plan = load_plan(args.plan, plan_source=config.plan_source)
         violations = check(plan.changes, config)
         checked = sum(1 for c in plan.changes if c.is_change)
         output = _render(fmt, violations, checked)

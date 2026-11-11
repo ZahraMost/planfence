@@ -4,6 +4,7 @@ is a ConfigError (CLI exit code 2).
 Format:
 
     enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
+    plan_source = "terraform"     # optional: "terraform" (default, strict) or "opentofu"
 
     [scope]                       # required iff "scope" is enabled
     allow = ["aws_s3_bucket.*", "module.app.*"]   # at most 500 patterns, each <= 512 chars
@@ -23,6 +24,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from planguard.parser import PLAN_SOURCES
+
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ALLOW_PATTERNS = 500
 MAX_PATTERN_LENGTH = 512  # characters
@@ -31,7 +34,7 @@ RULE_IDS = ("no-delete", "no-replace", "scope", "stateful-protect", "budget")
 
 # rule id -> config section it requires
 _SECTION_FOR_RULE = {"scope": "scope", "stateful-protect": "stateful", "budget": "budget"}
-_TOP_KEYS = {"enabled_rules", "scope", "stateful", "budget"}
+_TOP_KEYS = {"enabled_rules", "plan_source", "scope", "stateful", "budget"}
 
 
 class ConfigError(Exception):
@@ -45,6 +48,7 @@ class Config:
     stateful_types: tuple[str, ...] = ()
     max_changes: int | None = None
     max_creates_per_type: dict[str, int] = field(default_factory=dict)
+    plan_source: str = "terraform"
 
 
 def _table(value: object, name: str, allowed: set[str]) -> dict:
@@ -92,6 +96,12 @@ def parse_config(data: object) -> Config:
                 raise ConfigError(f"rule '{rule}' is enabled but section [{section}] is missing")
             raise ConfigError(f"section [{section}] is present but rule '{rule}' is not enabled")
 
+    plan_source = "terraform"
+    if "plan_source" in data:
+        plan_source = data["plan_source"]
+        if not isinstance(plan_source, str) or plan_source not in PLAN_SOURCES:
+            raise ConfigError('plan_source must be "terraform" or "opentofu"')
+
     allow: tuple[str, ...] = ()
     if "scope" in data:
         scope = _table(data["scope"], "scope", {"allow"})
@@ -133,6 +143,7 @@ def parse_config(data: object) -> Config:
         stateful_types=stateful_types,
         max_changes=max_changes,
         max_creates_per_type=max_creates,
+        plan_source=plan_source,
     )
 
 

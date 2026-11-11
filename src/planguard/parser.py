@@ -14,6 +14,8 @@ from pathlib import Path
 DEFAULT_MAX_BYTES = 128 * 1024 * 1024
 MAX_STRING_LENGTH = 4096  # characters; applies to resource_changes address, type and deposed
 
+PLAN_SOURCES = ("terraform", "opentofu")
+
 _FORMAT_VERSION_RE = re.compile(r"1\.[0-9]+")
 
 # Exact action lists seen in real plans (see tests/fixtures/README.md).
@@ -130,20 +132,36 @@ def _parse_change(index: int, item: object) -> Change:
     return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed)
 
 
-def parse_plan(data: object) -> Plan:
-    """Validate decoded JSON and return a Plan. Raises PlanError otherwise."""
+def parse_plan(data: object, plan_source: str = "terraform") -> Plan:
+    """Validate decoded JSON and return a Plan. Raises PlanError otherwise.
+
+    plan_source "terraform" (default, strict): `errored` and `complete` must be present booleans.
+    plan_source "opentofu": OpenTofu's plan JSON has no `complete` (and no `applyable`), so
+    `complete` is optional, but if present it must be boolean true. `errored` stays required.
+    """
+    if plan_source not in PLAN_SOURCES:
+        raise PlanError("unknown plan_source")
     if not isinstance(data, dict):
         raise PlanError("top level is not a JSON object")
     version = data.get("format_version")
     if not isinstance(version, str) or _FORMAT_VERSION_RE.fullmatch(version) is None:
         raise PlanError("'format_version' missing or not a supported 1.x version")
     errored = data.get("errored")
-    complete = data.get("complete")
-    if not isinstance(errored, bool) or not isinstance(complete, bool):
-        raise PlanError("'errored' and 'complete' must be present booleans (is this a plan file?)")
+    if plan_source == "terraform":
+        complete = data.get("complete")
+        if not isinstance(errored, bool) or not isinstance(complete, bool):
+            raise PlanError(
+                "'errored' and 'complete' must be present booleans (is this a plan file? "
+                'OpenTofu plans need plan_source = "opentofu" in the config)'
+            )
+    else:
+        if not isinstance(errored, bool):
+            raise PlanError("'errored' must be a present boolean (is this a plan file?)")
+        if "complete" in data and not isinstance(data["complete"], bool):
+            raise PlanError("'complete', if present, must be a boolean")
     if errored:
         raise PlanError("plan is marked errored")
-    if not complete:
+    if "complete" in data and not data["complete"]:
         raise PlanError("plan is not marked complete")
     # Content outside resource_changes that can still act at apply: planguard cannot
     # judge it, so anything but absent / [] is refused (fail closed).
@@ -159,8 +177,8 @@ def parse_plan(data: object) -> Plan:
     return Plan(changes=tuple(changes))
 
 
-def load_plan(path: str | Path, max_bytes: int = DEFAULT_MAX_BYTES) -> Plan:
-    """Read, size-limit, decode and validate a plan JSON file."""
+def load_plan(path: str | Path, max_bytes: int = DEFAULT_MAX_BYTES, plan_source: str = "terraform") -> Plan:
+    """Read, size-limit, decode and validate a plan JSON file (see parse_plan for plan_source)."""
     try:
         with open(path, "rb") as fh:
             raw = fh.read(max_bytes + 1)
@@ -174,4 +192,4 @@ def load_plan(path: str | Path, max_bytes: int = DEFAULT_MAX_BYTES) -> Plan:
         raise
     except (ValueError, RecursionError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
         raise PlanError("plan file is not valid JSON") from None
-    return parse_plan(data)
+    return parse_plan(data, plan_source)

@@ -62,7 +62,7 @@ MUTATIONS: list[Mutation] = [
     M("M06", "parser.py", "changes.sort(key=lambda c: c.sort_key)", "pass", "parser no longer sorts changes"),
     # -- parser.py: fail-closed checks
     M("M07", "parser.py", "if errored:", "if False:", "remove the errored check"),
-    M("M08", "parser.py", "if not complete:", "if False:", "remove the complete check"),
+    M("M08", "parser.py", 'if "complete" in data and not data["complete"]:', "if False:", "remove the complete check"),
     M("M09", "parser.py", "if not isinstance(errored, bool) or not isinstance(complete, bool):", "if False:",
       "remove the errored/complete boolean type check"),
     M("M10", "parser.py", 'if change.get("importing") is not None:', "if False:", "remove the importing check"),
@@ -183,10 +183,43 @@ MUTATIONS: list[Mutation] = [
       "empty actions list reaches the KNOWN_ACTIONS check instead of its own check"),
     M("M74", "rules.py", "count = creates.get(rtype, 0)", "count = creates.get(rtype, 1)",
       "budget: unseen types count as one create"),
+    # -- plan_source (OpenTofu mode)
+    M("M75", "parser.py", "        if not isinstance(errored, bool):\n", "        if False:\n",
+      "opentofu mode skips the errored presence/type check"),
+    M("M76", "parser.py", 'if "complete" in data and not isinstance(data["complete"], bool):', "if False:",
+      "opentofu mode accepts a non-boolean complete"),
+    M("M77", "parser.py", 'if "complete" in data and not data["complete"]:',
+      'if plan_source == "terraform" and "complete" in data and not data["complete"]:',
+      "opentofu mode accepts complete=false"),
+    M("M78", "parser.py", "if not isinstance(errored, bool) or not isinstance(complete, bool):",
+      'if not isinstance(errored, bool) or ("complete" in data and not isinstance(complete, bool)):',
+      "default (terraform) mode accepts a missing complete"),
+    M("M79", "parser.py", "if plan_source not in PLAN_SOURCES:", "if False:", "parser does not validate the mode"),
+    M("M80", "config.py", "if not isinstance(plan_source, str) or plan_source not in PLAN_SOURCES:",
+      "if not isinstance(plan_source, str):", "config does not validate the plan_source value"),
+    M("M81", "config.py", "if not isinstance(plan_source, str) or plan_source not in PLAN_SOURCES:",
+      "if plan_source not in PLAN_SOURCES:", "config does not check the plan_source type separately"),
+    M("M82", "config.py", '    plan_source = "terraform"\n    if "plan_source" in data:',
+      '    plan_source = "opentofu"\n    if "plan_source" in data:', "config default plan_source is opentofu"),
+    M("M83", "config.py", '    plan_source: str = "terraform"\n', '    plan_source: str = "opentofu"\n',
+      "Config dataclass default plan_source is opentofu"),
+    M("M84", "cli.py", "plan_source=config.plan_source", 'plan_source="terraform"',
+      "CLI ignores plan_source from the config"),
+    M("M85", "cli.py", "plan_source=config.plan_source", 'plan_source="opentofu"',
+      "CLI always uses opentofu mode"),
+    M("M86", "parser.py", "return parse_plan(data, plan_source)", "return parse_plan(data)",
+      "load_plan drops the mode"),
+    M("M87", "parser.py", 'PLAN_SOURCES = ("terraform", "opentofu")', 'PLAN_SOURCES = ("terraform", "opentofu", "tofu")',
+      "an extra plan_source value is accepted"),
+    M("M88", "parser.py", "        if not isinstance(errored, bool):\n            raise PlanError(\"'errored' must be a present boolean",
+      "        if errored is None:\n            raise PlanError(\"'errored' must be a present boolean",
+      "opentofu mode only rejects a missing errored (wrong types pass)"),
 ]
 
 # Mutants that cannot change observable behaviour. id -> reason.
 EQUIVALENT: dict[str, str] = {
+    "M81": "non-string values can never equal either allowed string, so the `in PLAN_SOURCES` "
+           "membership test already rejects them; the separate isinstance check is defensive only.",
     "M73": "an empty actions list is still refused (exit 2) by the KNOWN_ACTIONS membership check right "
            "after it; only the error message differs.",
     "M51": "argparse only ever calls exit() with status 0 (help) or 2 (usage error), so the "

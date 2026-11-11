@@ -59,11 +59,22 @@ CONFIGS = {
         "stateful": ["terraform_data", "aws_db_instance"],
     },
     "creates-only": {"rules": ["budget"], "creates": {"terraform_data": 0, "aws_instance": 2}},
+    "tofu-full": {
+        "rules": ["no-delete", "no-replace", "scope", "stateful-protect", "budget"],
+        "plan_source": "opentofu",
+        "allow": ["terraform_data.*", "module.child.*", 'terraform_data.keyed["a"]'],
+        "stateful": ["terraform_data"],
+        "max_changes": 2,
+        "creates": {"terraform_data": 1},
+    },
+    "tofu-delete-only": {"rules": ["no-delete"], "plan_source": "opentofu"},
 }
 
 
 def toml_of(cfg):
     lines = [f"enabled_rules = {json.dumps(cfg['rules'])}"]
+    if "plan_source" in cfg:
+        lines.append(f"plan_source = {json.dumps(cfg['plan_source'])}")
     if "scope" in cfg["rules"]:
         lines += ["[scope]", f"allow = {json.dumps(cfg['allow'])}"]
     if "stateful-protect" in cfg["rules"]:
@@ -102,16 +113,20 @@ def _good_str(v):
     return isinstance(v, str) and v != "" and len(v) <= 4096
 
 
-def oracle_entries(doc):
+def oracle_entries(doc, source="terraform"):
     """List of (address, type, actions, deposed) or None if the plan must be refused (exit 2)."""
     if not isinstance(doc, dict):
         return None
     fv = doc.get("format_version")
     if not (isinstance(fv, str) and fv.startswith("1.") and fv[2:].isascii() and fv[2:].isdigit()):
         return None
-    if type(doc.get("errored")) is not bool or type(doc.get("complete")) is not bool:
+    if type(doc.get("errored")) is not bool:
         return None
-    if doc["errored"] or not doc["complete"]:
+    if source == "terraform" and type(doc.get("complete")) is not bool:
+        return None
+    if source == "opentofu" and "complete" in doc and type(doc["complete"]) is not bool:
+        return None
+    if doc["errored"] or ("complete" in doc and not doc["complete"]):
         return None
     for key in ("action_invocations", "deferred_changes"):
         if key in doc and not (isinstance(doc[key], list) and len(doc[key]) == 0):
@@ -177,7 +192,7 @@ def oracle(raw, cfg):
         doc = json.loads(raw, object_pairs_hook=_nodups)
     except (ValueError, RecursionError):
         return 2
-    entries = oracle_entries(doc)
+    entries = oracle_entries(doc, cfg.get("plan_source", "terraform"))
     if entries is None:
         return 2
     return 1 if oracle_violations(entries, cfg) else 0
@@ -203,7 +218,7 @@ def plant(doc):
 
 def _load_seeds():
     seeds = []
-    for sub_dir in ("real", "handmade"):
+    for sub_dir in ("real", "handmade", "opentofu", "partial/terraform", "partial/opentofu"):
         for path in sorted((FIXTURES / sub_dir).glob("*.json")):
             seeds.append((f"{sub_dir}/{path.stem}", plant(json.loads(path.read_text(encoding="utf-8")))))
     return seeds
@@ -523,6 +538,19 @@ def test_oracle_on_unmutated_real_fixtures():
         raw = (FIXTURES / "real" / f"{name}.json").read_bytes()
         assert oracle(raw, cfg) == code, name
     assert oracle((FIXTURES / "handmade" / "deferred_changes.json").read_bytes(), cfg) == 2
+
+
+def test_oracle_plan_source_modes():
+    tf_cfg, tofu_cfg = CONFIGS["full"], CONFIGS["tofu-full"]
+    expect = {"create": 0, "update": 0, "noop": 0, "delete": 1, "replace": 1, "import": 2}
+    for name, code in expect.items():
+        tofu_raw = (FIXTURES / "opentofu" / f"{name}.json").read_bytes()
+        assert oracle(tofu_raw, tofu_cfg) == code, name       # accepted (or judged) in opentofu mode
+        assert oracle(tofu_raw, tf_cfg) == 2, name            # strict mode refuses: no `complete`
+        tf_raw = (FIXTURES / "real" / f"{name}.json").read_bytes()
+        assert oracle(tf_raw, tofu_cfg) == oracle(tf_raw, tf_cfg), name
+    partial = (FIXTURES / "partial" / "terraform" / "two_target.json").read_bytes()
+    assert oracle(partial, tofu_cfg) == 2 and oracle(partial, tf_cfg) == 2  # complete=false
 
 
 def test_wild_oracle_semantics():

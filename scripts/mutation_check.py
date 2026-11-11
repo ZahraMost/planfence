@@ -23,6 +23,7 @@ import hashlib
 import os
 import py_compile
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -214,6 +215,11 @@ MUTATIONS: list[Mutation] = [
     M("M88", "parser.py", "        if not isinstance(errored, bool):\n            raise PlanError(\"'errored' must be a present boolean",
       "        if errored is None:\n            raise PlanError(\"'errored' must be a present boolean",
       "opentofu mode only rejects a missing errored (wrong types pass)"),
+    # -- matcher fast paths that skip the real matching
+    M("M89", "rules.py", "if self._prefixes and text.startswith(self._prefixes):", "if self._prefixes:",
+      "prefix fast path matches every address as soon as one prefix pattern exists"),
+    M("M90", "rules.py", "return any(glob_match(p, text) for p in self._generic)", "return False",
+      "generic (wildcard) patterns never match"),
 ]
 
 # Mutants that cannot change observable behaviour. id -> reason.
@@ -236,6 +242,9 @@ def tree_hash(path: Path) -> str:
     return h.hexdigest()
 
 
+PYTEST_EXTRA: list[str] = []  # set from --pytest-args (e.g. to isolate which tests kill a mutant)
+
+
 def run_pytest(src_copy: Path, timeout: int) -> tuple[str, str]:
     """Run the suite against src_copy. Returns (status, detail); status is PASS / FAIL / TIMEOUT / ERROR."""
     env = dict(
@@ -246,7 +255,7 @@ def run_pytest(src_copy: Path, timeout: int) -> tuple[str, str]:
         PYTHONDONTWRITEBYTECODE="1",
     )
     cmd = [sys.executable, "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",
-           "-o", f"pythonpath={src_copy}", "tests"]
+           "-o", f"pythonpath={src_copy}", *(PYTEST_EXTRA or ["tests"])]
     try:
         proc = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -287,7 +296,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
     ap.add_argument("--only", nargs="*", help="run only these mutation ids")
     ap.add_argument("--timeout", type=int, default=300, help="per-mutant test timeout in seconds")
+    ap.add_argument("--pytest-args", default="", help='replace the default "tests" argument, e.g. '
+                    '"tests/test_x.py -k name" (to see which tests kill a mutant)')
     args = ap.parse_args(argv)
+    PYTEST_EXTRA[:] = shlex.split(args.pytest_args)
 
     ids = [m.id for m in MUTATIONS]
     if len(ids) != len(set(ids)):

@@ -1,6 +1,7 @@
 """Scope fast paths: identical semantics to glob_match, and bounded work for large inputs."""
 
 import random
+import re
 import time
 
 import pytest
@@ -97,12 +98,28 @@ def test_many_prefix_patterns_many_changes():
     assert took < BOUND
 
 
+def rx_matches(pattern, text):
+    """Independent reference matcher: only * and ? are wildcards, everything else is literal."""
+    rx = "".join(".*" if ch == "*" else "." if ch == "?" else re.escape(ch) for ch in pattern)
+    return re.fullmatch(rx, text, re.DOTALL) is not None
+
+
+def expected_violations(changes, allow):
+    return sorted(c.address for c in changes if c.is_change and not any(rx_matches(p, c.address) for p in allow))
+
+
 def test_prefix_patterns_are_not_evaluated_one_by_one_in_python(monkeypatch):
     calls = []
     real = glob_match
     monkeypatch.setattr("planguard.rules.glob_match", lambda p, t: calls.append(p) or real(p, t))
-    scope(make_changes(50), ["module.*", "exact", "p.*"])
+    changes = make_changes(50)
+    allow = ["module.m1*", "exact", "p.*"]  # prefix, exact and prefix-only patterns
+    violations = scope(changes, allow)
     assert calls == []  # exact and prefix-only patterns never reach glob_match
+    # ... and the fast path still gives the right answer: m1, m10..m19 are allowed, the rest violate
+    assert sorted(v.address for v in violations) == expected_violations(changes, allow)
+    assert 0 < len(violations) < len(changes)
+    assert len(violations) == 50 - 11  # module.m1 and module.m10 .. module.m19
 
 
 def test_generic_patterns_still_bounded_for_realistic_sizes():
@@ -110,7 +127,14 @@ def test_generic_patterns_still_bounded_for_realistic_sizes():
     allow = [f"module.m*.aws_instance.r[{i}0*" for i in range(20)] + ["*.r[1?]"]
     vs, took = timed(lambda: scope(changes, allow))
     assert took < BOUND
+    expected = expected_violations(changes, allow)
+    assert sorted(v.address for v in vs) == expected  # exact set, computed independently
     assert all(v.rule == "scope" for v in vs)
+    # sanity: the patterns really allow some changes and reject others
+    assert 0 < len(expected) < len(changes)
+    assert len(expected) == 2000 - len(
+        [c for c in changes if any(rx_matches(p, c.address) for p in allow)]
+    )
 
 
 def test_long_prefix_and_exact_patterns_at_the_limit():

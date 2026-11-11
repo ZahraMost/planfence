@@ -274,7 +274,7 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
-# mutation testing: applies 89 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 91 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
 

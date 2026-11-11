@@ -87,3 +87,74 @@ def test_example_workflow_scope_documented(name):
     text = (ROOT / name).read_text(encoding="utf-8")
     for needle in WORKFLOW_NEEDLES:
         assert needle in text, f"{name}: missing {needle!r}"
+
+
+# ---- round-2 review: plan modes, what planguard reads, versions, CODEOWNERS ----------------------
+
+ROUND2_NEEDLES = [
+    # what planguard reads vs what creating the plan does
+    "planguard itself reads only the plan file",
+    "may contact providers",
+    "run data sources",
+    "`external`",
+    # plan modes and flags
+    "Plan modes and flags",
+    "-refresh-only",
+    "-replace",
+    "replace_by_request",
+    "keep `no-replace` enabled",
+    "output_changes",
+    "complete: false",
+    # versions and providers
+    "`terraform_version`",
+    "provider versions",
+    ".terraform.lock.hcl",
+    "unverified",
+    # trust boundary
+    "CODEOWNERS",
+    "/planguard.toml",
+    "/.github/",
+    "/CODEOWNERS",
+    "trust boundary",
+]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_round2_documentation_present(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for needle in ROUND2_NEEDLES:
+        assert needle in text, f"{name}: missing {needle!r}"
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_misleading_claim_removed(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    assert "never your cloud, state, or provider" not in text
+    assert "it only reads the plan file" not in text
+
+
+def test_codeowners_example_protects_the_trust_boundary():
+    lines = [ln.split() for ln in (ROOT / "examples" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
+             if ln.strip() and not ln.strip().startswith("#")]
+    protected = {parts[0] for parts in lines}
+    assert {"/planguard.toml", "/.github/", "/CODEOWNERS"} <= protected
+    assert all(len(parts) >= 2 and parts[1].startswith("@") for parts in lines)
+
+
+def test_documented_mutant_count_matches_the_script():
+    import importlib.util
+    import re
+    import sys
+
+    spec = importlib.util.spec_from_file_location("mutation_check", ROOT / "scripts" / "mutation_check.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["mutation_check"] = module  # @dataclass needs the module to be registered
+    try:
+        spec.loader.exec_module(module)
+        actual = len(module.MUTATIONS)
+    finally:
+        sys.modules.pop("mutation_check", None)
+    for name in ("README.md", "CLAUDE.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        counts = [int(n) for n in re.findall(r"(\d+) (?:small )?source mutations", text)]
+        assert counts == [actual], f"{name}: documented {counts}, script has {actual}"

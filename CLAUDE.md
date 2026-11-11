@@ -172,11 +172,33 @@ aws_instance = 2
   the same job, gated by a protected environment with required reviewers. The checksum only
   detects accidental change inside the trusted job. Moving the binary plan between jobs means
   uploading an artifact, and it can contain secrets.
+- planguard itself reads only the plan file (and its config), but creating the plan
+  may contact providers, read and refresh state, and run data sources (e.g. `external`),
+  before planguard starts. Never claim planguard "never touches state or providers" for the
+  whole CI run.
+- Versions: planguard does not check `terraform_version`, provider versions or provider
+  identities. Pin Terraform/OpenTofu and providers in CI (.terraform.lock.hcl,
+  required_version, required_providers); plans from other versions are unverified.
+- The workflow file and the planguard version are part of the trust boundary: they decide what
+  is checked. Protect them like the contract with CODEOWNERS (examples/CODEOWNERS: /planguard.toml, /.github/,
+  /CODEOWNERS itself) plus branch protection requiring code-owner review.
 - planguard does not see provisioners (local-exec, remote-exec), data source side
   effects (e.g. the `external` data source runs at plan time), or what a create actually
   does; it never judges attribute values.
 - A pass is not an approval: exit 0 means "inside the contract", a filter in front of
   human review, not a replacement for it.
+
+## Plan modes and flags (verified with real fixtures, tests/fixtures/modes + partial)
+planguard sees only the plan JSON, not the command line.
+- -target: Terraform sets `complete: false` -> refused (exit 2). OpenTofu: no signal,
+  cannot be recognised (see plan_source above); run `tofu plan` without -target/-exclude.
+- -refresh-only: NO `resource_changes` key -> "0 changes", exit 0 even with the strictest
+  contract. With real drift (remote state output changed) the only trace is `output_changes`
+  (Terraform also `applyable: true`), which is not checked. A pass is not "nothing changes";
+  applying it updates state. `resource_drift` could not be produced offline: unverified.
+- -replace=ADDR: `["delete","create"]` with `action_reason: replace_by_request` and no
+  `replace_paths`; same `actions` as a config-driven replacement. planguard cannot know the
+  flag: keep `no-replace` enabled if replacements are not allowed (no-delete does not fire).
 
 ## NOT verified / known gaps (keep this list honest)
 - OpenTofu: verified only for 1.13.9 and only on the 16 terraform_data scenarios (same as
@@ -193,7 +215,9 @@ aws_instance = 2
   their entries is unverified (not producible with Terraform 1.17.2 / OpenTofu 1.13.9 + built-in
   resources). `importing` IS verified with real fixtures.
 - Action lists not seen in real output (e.g. ["create","forget"]) -> exit 2.
-- `output_changes` and `resource_drift` are deliberately not checked in v0.1.
+- `output_changes` and `resource_drift` are deliberately not checked in v0.1. Real
+  `resource_drift` could not be produced offline (no fixture); real output drift under
+  -refresh-only was (tests/fixtures/modes) and passes with exit 0.
 - The GitHub Actions workflows have not run on GitHub; the example workflow's
   third-party action versions and the install URL are unverified.
 

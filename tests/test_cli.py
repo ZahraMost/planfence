@@ -7,9 +7,8 @@ from pathlib import Path
 import pytest
 
 from planguard import cli
-from tests.conftest import fixture_path, make_plan
+from tests.conftest import SRC, fixture_path, make_plan
 
-SRC = Path(__file__).resolve().parent.parent / "src"
 
 FULL_TOML = """\
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]

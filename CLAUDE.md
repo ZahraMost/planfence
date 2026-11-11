@@ -190,6 +190,12 @@ or any network use other than `pip install` and Terraform's own init.
 ## Workflow
 - Tests first. Small commits (one rule or one step per commit).
 - Run the full test suite before every commit.
+- tests/test_fuzz.py: deterministic differential fuzzing of cli.main against an
+  independent oracle written inside the test (exit code must equal the oracle's;
+  no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N
+  sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
+- Tests honour PLANGUARD_SRC (see tests/conftest.py SRC) so subprocess tests can
+  run against another copy of src/.
 - When unsure about Terraform behaviour, say so and ask me to verify with a
   real `terraform` command. Never guess.
 - README must state what planguard does NOT claim: it does not check security,

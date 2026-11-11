@@ -185,6 +185,8 @@ huge or adversarial plan can never hang your pipeline. Both workflows in this re
 python3.13 -m venv .venv
 .venv/bin/python -m pip install pytest
 .venv/bin/python -m pytest
+# tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
+# (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
 # regenerate real fixtures (needs terraform or tofu; uses only built-in terraform_data,
 # throwaway temp directories and local state, creates nothing real)

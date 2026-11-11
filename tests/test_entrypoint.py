@@ -2,7 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent.parent / "src"
+from tests.conftest import SRC
+
 
 
 def test_python_dash_m_runs_and_fails_closed():

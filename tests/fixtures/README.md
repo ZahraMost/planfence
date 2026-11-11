@@ -93,6 +93,22 @@ Observations that matter:
   be created offline with built-in resources (`terraform_data` has no external system), and editing
   the state file by hand would be faking it, so there is no fixture for it.
 
+## moved/ (generated): `moved` blocks, real output of both tools
+
+`moved/terraform/` (Terraform 1.17.2) and `moved/opentofu/` (OpenTofu 1.13.9), generated with
+`scripts/make_fixtures.py --out tests/fixtures/moved/<dir> moved_only moved_update moved_into_module`
+(non-default scenarios, built-in `terraform_data` only, no providers downloaded).
+
+| Scenario | Config change | `address` | `previous_address` | `actions` | `action_reason` | `module_address` |
+|---|---|---|---|---|---|---|
+| `moved_only` | rename `old` -> `new`, nothing else | `terraform_data.new` | `terraform_data.old` | `["no-op"]` | none | none |
+| `moved_update` | rename `old` -> `new` and `input` "a" -> "b" | `terraform_data.new` | `terraform_data.old` | `["update"]` | none | none |
+| `moved_into_module` | move `terraform_data.thing` into local module `m` | `module.m.terraform_data.thing` | `terraform_data.thing` | `["no-op"]` | none | `module.m` |
+
+Both tools are identical (apart from OpenTofu's missing `complete` / `applyable`). Terraform reports
+`applyable: true` for the pure moves: applying them changes the state. The only extra key on an entry
+is `previous_address` (plus `module_address` for the module case); the top-level shape is unchanged.
+
 ## handmade
 
 Hand-written, NOT verified against a real plan. They exist only to test that

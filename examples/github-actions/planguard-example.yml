@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
 
@@ -43,9 +43,11 @@ jobs:
           terraform show -json tfplan > plan.json
           sha256sum tfplan > tfplan.sha256
 
-      # Replace with your own source/version. planguard has no runtime dependencies.
+      # Pin planguard to a tag (part of the trust boundary). NOTE: the tag v0.1.0 does not exist yet;
+      # nothing has been released or tagged. Use the tag or commit you trust once there is one.
+      # planguard has no runtime dependencies.
       - name: Install planguard
-        run: python -m pip install "git+https://github.com/YOUR-ORG/planguard.git@v0.1.0"
+        run: python -m pip install "git+https://github.com/ZahraMost/planguard.git@v0.1.0"
 
       # SECURITY: load the contract from the BASE branch, not from the PR checkout, so the
       # PR author cannot weaken it. (Alternatively protect planguard.toml with CODEOWNERS

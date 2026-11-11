@@ -1,7 +1,8 @@
 # Example CODEOWNERS: protect everything that decides what planguard checks.
-# Copy to CODEOWNERS (repository root) or .github/CODEOWNERS and replace the owner.
+# Copy to CODEOWNERS (repository root) or .github/CODEOWNERS. The owner is a user account; if the
+# repository belongs to an organisation, use a team owner instead.
 # It only takes effect together with branch protection ("Require review from Code Owners",
 # no bypass for the PR author) and a required status check for the planguard job.
-/planguard.toml   @YOUR-ORG/infra-owners
-/.github/         @YOUR-ORG/infra-owners
-/CODEOWNERS       @YOUR-ORG/infra-owners
+/planguard.toml   @ZahraMost
+/.github/         @ZahraMost
+/CODEOWNERS       @ZahraMost

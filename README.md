@@ -1,3 +1,7 @@
+> **Status: pre-release (0.0.x), experimental.** planguard is a narrow guardrail, not a security audit:
+> a pass means 'this plan stays inside the contract you wrote', nothing more
+> (see [What planguard does NOT claim](#what-planguard-does-not-claim)).
+
 # planguard
 
 A deterministic guardrail for Terraform / OpenTofu plans. It reads the JSON from
@@ -303,9 +307,9 @@ keep that meaningful.
    code-owner review, protects the boundary:
 
    ```
-   /planguard.toml   @YOUR-ORG/infra-owners
-   /.github/         @YOUR-ORG/infra-owners
-   /CODEOWNERS       @YOUR-ORG/infra-owners
+   /planguard.toml   @ZahraMost
+   /.github/         @ZahraMost
+   /CODEOWNERS       @ZahraMost
    ```
 
    The last line matters: if the PR author can edit CODEOWNERS itself, they can remove the protection.

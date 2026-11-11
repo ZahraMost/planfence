@@ -274,6 +274,11 @@ MUTATIONS: list[Mutation] = [
     M("M118", "parser.py", 'STATE_ONLY_MODES = ("allow", "refuse")', 'STATE_ONLY_MODES = ("allow", "refuse", "deny")',
       "an extra state_only_plans value is accepted"),
     M("M119", "parser.py", "if not isinstance(drift, list):", "if False:", "refuse mode does not validate resource_drift"),
+    # -- --version
+    M("M120", "cli.py", "    except Exception:  # PackageNotFoundError or any broken-metadata problem",
+      "    except ImportError:  # PackageNotFoundError or any broken-metadata problem",
+      "--version only falls back when the metadata is missing, not when it is broken"),
+    M("M121", "cli.py", 'version=f"planguard {_version()}"', "version=_version()", "--version output lacks the program name"),
 ]
 
 # Mutants that cannot change observable behaviour. id -> reason.
@@ -306,6 +311,7 @@ def run_pytest(src_copy: Path, timeout: int) -> tuple[str, str]:
         PYTHONPATH=str(src_copy),
         PLANGUARD_SRC=str(src_copy),
         PLANGUARD_FUZZ_N="4000",
+        PLANGUARD_SKIP_SLOW="1",  # the wheel build/install test is about packaging, not source mutations
         PYTHONDONTWRITEBYTECODE="1",
     )
     cmd = [sys.executable, "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",

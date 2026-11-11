@@ -273,6 +273,9 @@ built-in resources); other OpenTofu/Terraform versions and providers; Python 3.1
 
 ## Security notes
 
+Report vulnerabilities privately, see [SECURITY.md](SECURITY.md). Changes are listed in
+[CHANGELOG.md](CHANGELOG.md).
+
 - The plan JSON contains attribute values, possibly secrets. Don't commit it or upload it as a
   CI artifact; delete it after the check.
 - Input is treated as untrusted: 128 MiB size limit, resource `address`, `type` and `deposed`
@@ -368,9 +371,12 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
-# mutation testing: applies 120 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 122 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
+
+# the packaging test builds the wheel and sdist, installs the wheel into a fresh venv and
+# uses it (needs `pip install build` and network access; skipped with a reason otherwise)
 
 # regenerate real fixtures (needs terraform or tofu; uses only built-in terraform_data,
 # throwaway temp directories and local state, creates nothing real)

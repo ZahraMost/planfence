@@ -1,5 +1,12 @@
 # Test fixtures
 
+## Providers downloaded
+
+None. Every generated fixture uses only the built-in `terraform_data` resource and the built-in
+`terraform_remote_state` data source (`terraform.io/builtin/terraform`), so `init` never downloaded a
+provider. If a future fixture needs one, only the non-cloud hashicorp/random, hashicorp/local or
+hashicorp/null may be used and their exact versions must be recorded here.
+
 ## real/ (generated, not hand-edited)
 
 Produced by `scripts/make_fixtures.py` with Terraform 1.17.2 (darwin_arm64),

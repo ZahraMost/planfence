@@ -142,6 +142,10 @@ Plan JSON shapes were verified with real `terraform show -json` output from **Te
 `format_version` of the form `1.x` is accepted and unknown properties are ignored, but any action
 list not seen in real output is rejected (exit 2) rather than guessed.
 
+Not verified: OpenTofu; plans containing `deposed` objects; `moved` and `import` blocks (planguard
+judges only `actions` and ignores `previous_address` / `importing`); Python 3.11 and 3.12
+(developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](CLAUDE.md).
+
 ## Security notes
 
 - The plan JSON contains attribute values, possibly secrets. Don't commit it or upload it as a

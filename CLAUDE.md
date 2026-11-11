@@ -15,6 +15,17 @@ scope. planguard answers one question before apply:
 - 1: at least one rule violated
 - 2: anything else (bad JSON, unknown format_version, unreadable file, crash)
 Never print "OK" or exit 0 if the plan was not fully understood.
+Hardening (tested in tests/test_exit_hardening.py):
+- ANY failure ends in exit 2, never 0 or 1: bad plan/config/arguments,
+  unexpected exceptions, and failures while printing (BrokenPipeError,
+  UnicodeEncodeError, OSError). If the result cannot be delivered, exit 2.
+- Entry point is `planguard.__main__.run` (used by `python -m planguard` and the
+  console script). It imports cli lazily and maps import errors, KeyboardInterrupt,
+  stray SystemExit, invalid return values and a failing final flush to 2.
+  After a failed stdout it redirects fd 1 to the null device (otherwise Python
+  exits with 120 at shutdown).
+- cli.main() decides the result first, then writes it. It never raises for
+  ordinary failures and returns only 0, 1 or 2 (argparse help -> 0, usage error -> 2).
 
 ## Input facts (verified against Terraform 1.17.2, see tests/fixtures/README.md)
 - Top level: `format_version`, `errored`, `complete`, `resource_changes` (list)
@@ -63,17 +74,70 @@ Each rule needs: one failing fixture, one passing fixture, unit tests.
    may change; "no-op" and "read" entries are ignored
 4. stateful-protect: delete, replace or forget of configured stateful types
    is `critical`
-5. budget: max total changes; max creates per resource type
+5. budget: `max_changes` (total changes) and `max_creates_per_type`
+   (creates per resource type). Violated when the count is strictly greater
+   than the limit.
 
-Config: `planguard.toml`, parsed with `tomllib`.
-Contains: enabled rules, allowlist patterns, stateful types, budget numbers.
-Unknown keys -> exit 2.
+## Config: planguard.toml (tomllib, strict)
+```toml
+enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
+
+[scope]                         # required iff "scope" is enabled
+allow = ["module.app.*", 'aws_instance.web["blue"]']
+
+[stateful]                      # required iff "stateful-protect" is enabled
+types = ["aws_db_instance"]     # exact type names, no wildcards, NO default list
+
+[budget]                        # required iff "budget" is enabled
+max_changes = 10                # optional integer >= 0
+[budget.max_creates_per_type]   # optional table: type -> integer >= 0
+aws_instance = 2
+```
+- Unknown keys at ANY level -> exit 2 (config keys under max_creates_per_type
+  are type names and are free-form). Wrong types, bool where int is expected,
+  negative numbers, unknown or duplicate rule ids -> exit 2.
+- `enabled_rules` is required and non-empty. A rule that is enabled but lacks
+  its section, or a section whose rule is not enabled -> exit 2.
+- Empty allow / types lists, an empty [budget], empty strings -> exit 2.
+- Config path: `--config` (default `./planguard.toml`); a missing file -> exit 2.
+  Config file size limit 1 MiB.
+- What counts as "stateful" is the USER's decision (security behaviour): never
+  add a built-in default list without asking.
 
 ## Output
 - Text (default) and `--format json`.
-- Print ONLY address, type, action and rule id.
+- Print ONLY: rule id, severity (`error`, or `critical` for stateful-protect),
+  address, type, action, and the `deposed` key when present. For budget
+  violations also the integers `count` and `limit`. Nothing else.
 - NEVER print attribute values (they may contain secrets).
-- Deterministic ordering (sort by address, then deposed key).
+- Deterministic ordering (address, then deposed key, then rule, then type).
+- Text is pure ASCII: control and non-ASCII characters in addresses/types are
+  escaped (no terminal injection, no UnicodeEncodeError). Text lines:
+  `[error] no-delete aws_x.y (aws_x) delete` (+ ` deposed=KEY`), then
+  `planguard: FAIL - N violation(s)` or
+  `planguard: OK - N change(s) checked, all enabled rules passed`.
+- Budget violations have no address (JSON `address`/`type`/`action` may be null):
+  - text: `[error] budget total changes 6 > max_changes 5`
+  - text: `[error] budget creates of aws_instance 3 > limit 2`
+  - JSON: the same violation object plus integer `count` and `limit`.
+    Non-budget violations do NOT have these keys.
+- JSON document: `{"result": "pass"|"fail", "changes_checked": N,
+  "violations": [{rule, severity, address, type, action, deposed}, ...]}`.
+  On exit 2 with `--format json`, stdout is `{"result": "error", "message": ...}`
+  and the message is also written to stderr. Error messages never contain plan values.
+
+## NOT verified / known gaps (keep this list honest)
+- OpenTofu: `format_version` and action lists are NOT verified (only Terraform 1.17.2).
+- `deposed`: supported (sorting, display, all rules) but no real plan fixture
+  has one; tests use hand-built plans.
+- Python 3.11 and 3.12: untested locally (only 3.13). CI matrix is the first check.
+- `moved` and `import` blocks: not verified. planguard ignores `previous_address`
+  and `importing` and judges only `actions`; a pure move or import may appear as a
+  no-op/update and is not specially treated.
+- Action lists not seen in real output (e.g. ["create","forget"]) -> exit 2.
+- `output_changes` and `resource_drift` are deliberately not checked in v0.1.
+- The GitHub Actions workflows have not run on GitHub; the example workflow's
+  third-party action versions and the install URL are unverified.
 
 ## Hard constraints
 - Runtime dependencies: none (stdlib only). Dev dependency allowed: pytest.
@@ -100,6 +164,8 @@ or any network use other than `pip install` and Terraform's own init.
 - Use `.venv/bin/python` (Python 3.13). `python3` on this machine is 3.9 - do not use it.
 - Terraform is at /opt/homebrew/bin/terraform (may not be on PATH in tool shells).
 - Without installing: `PYTHONPATH=src .venv/bin/python -m planguard`.
+- Installed editable in .venv: `.venv/bin/planguard` (entry point `planguard.__main__:run`).
+- Tests: `.venv/bin/python -m pytest -q`.
 
 ## Workflow
 - Tests first. Small commits (one rule or one step per commit).

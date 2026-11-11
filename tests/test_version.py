@@ -24,10 +24,27 @@ def test_package_version_matches_pyproject():
     assert planguard.__version__ == pyproject_version()
 
 
+def expected_version():
+    """What `--version` must print, computed independently of the code under test: the installed
+    distribution's version if planguard is installed, else the module constant (a bare checkout)."""
+    try:
+        return importlib.metadata.version("planguard")
+    except importlib.metadata.PackageNotFoundError:
+        return planguard.__version__
+
+
 def test_version_flag_prints_the_version_and_exits_0(capsys):
     assert cli.main(["--version"]) == 0
     out = capsys.readouterr()
-    assert out.out == f"planguard {importlib.metadata.version('planguard')}\n" and out.err == ""
+    assert out.out == f"planguard {expected_version()}\n" and out.err == ""
+
+
+def test_when_installed_the_metadata_version_equals_pyproject():
+    try:
+        installed = importlib.metadata.version("planguard")
+    except importlib.metadata.PackageNotFoundError:
+        pytest.skip("planguard is not installed in this environment (running from a bare checkout, as in CI)")
+    assert installed == pyproject_version()
 
 
 def test_version_flag_needs_no_other_arguments_and_wins_over_them(capsys, tmp_path):

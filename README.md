@@ -128,7 +128,10 @@ planguard is a narrow guardrail, not a safety guarantee. It does **not** check:
 - **cost**: it does not estimate or limit spend (the budget counts changes, not money);
 - **configuration correctness**: a plan can stay inside the contract and still be wrong;
 - **live infrastructure**: it only reads the plan file, never your cloud, state, or provider;
-- **`output_changes`** or **`resource_drift`** in the plan JSON (v0.1 inspects `resource_changes` only);
+- **`output_changes`** or **`resource_drift`** in the plan JSON (v0.1 inspects `resource_changes` only).
+  Example: a plan whose only changes are a deleted output (`output_changes`) or an out-of-band
+  deleted database found during refresh (`resource_drift`), with an empty `resource_changes`,
+  **passes with exit 0**;
 - **attribute-level changes**: an `update` is an `update`, whatever it changes.
 
 A passing result means "this plan, as written, matches the contract you wrote", nothing more.

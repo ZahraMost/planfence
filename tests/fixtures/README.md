@@ -18,6 +18,9 @@ data source in throwaway temp directories. All have `format_version` "1.2",
 | forget.json | `removed` block, `destroy = false` | `terraform_data.example` -> `["forget"]` |
 | read.json | data source deferred via `depends_on` | `data.terraform_remote_state.src` -> `["read"]`, `terraform_data.gate` -> `["create"]` |
 | read_immediate.json | data source read at plan time | **no `resource_changes` key** |
+| import.json | `import` block, no `triggers_replace` | `terraform_data.example` -> `["update"]` with `change.importing = {id}` |
+| import_replace.json | `import` block + `triggers_replace` | `terraform_data.example` -> `["delete","create"]` with `change.importing` |
+| import_noop.json | `import` block, nothing else differs | `terraform_data.example` -> `["no-op"]` with `change.importing` (an import hidden behind a no-op) |
 | empty.json | no resources at all | **no `resource_changes` key** |
 | count.json | `count` 3 -> 2 | `[0]`,`[1]` -> `["no-op"]`, `terraform_data.counted[2]` -> `["delete"]` |
 | for_each.json | keys {a,b} -> {a,c}, value of a changed | `["a"]` -> `["update"]`, `["b"]` -> `["delete"]`, `["c"]` -> `["create"]` |
@@ -31,5 +34,17 @@ Notes:
 
 ## handmade
 
-None yet. Hand-written fixtures (e.g. stateful cloud types, `deposed` objects)
-must be listed here as `handmade` until verified against a real plan.
+Hand-written, NOT verified against a real plan. They exist only to test that
+planguard fails closed (exit 2). Terraform 1.17.2 cannot produce them with
+built-in resources only (no `-allow-deferral` flag in this build, and the
+built-in provider defines no actions), so the exact JSON shape of the entries
+is unverified; only the presence of the top-level key matters to planguard.
+Both are `real/noop.json` plus one extra key.
+
+| File | Extra key | Why handmade |
+|---|---|---|
+| handmade/action_invocations.json | `action_invocations: [{...}]` | needs a provider with actions (Terraform actions) |
+| handmade/deferred_changes.json | `deferred_changes: [{...}]` | needs `plan -allow-deferral` (not available here) |
+
+Other hand-built plans live inline in the tests (e.g. `deposed` entries, `output_changes`,
+`resource_drift`) and are not files.

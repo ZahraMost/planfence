@@ -28,6 +28,7 @@ KNOWN_ACTIONS: frozenset[tuple[str, ...]] = frozenset(
         ("create", "delete"),
     }
 )
+_UNJUDGEABLE_TOP_LEVEL = ("action_invocations", "deferred_changes")
 _NOT_CHANGES: frozenset[tuple[str, ...]] = frozenset({("no-op",), ("read",)})
 
 
@@ -109,6 +110,9 @@ def _parse_change(index: int, item: object) -> Change:
         raise PlanError(f"{where}: 'change.actions' missing, empty or not a list")
     if not all(isinstance(a, str) for a in actions) or tuple(actions) not in KNOWN_ACTIONS:
         raise PlanError(f"{where}: unknown 'change.actions' list")
+    if change.get("importing") is not None:
+        # An import operation happens in addition to the actions; planguard cannot judge it.
+        raise PlanError(f"{where}: 'change.importing' is present (import operations are not supported)")
     deposed = None
     if "deposed" in item:
         deposed = item["deposed"]
@@ -132,6 +136,11 @@ def parse_plan(data: object) -> Plan:
         raise PlanError("plan is marked errored")
     if not complete:
         raise PlanError("plan is not marked complete")
+    # Content outside resource_changes that can still act at apply: planguard cannot
+    # judge it, so anything but absent / [] is refused (fail closed).
+    for key in _UNJUDGEABLE_TOP_LEVEL:
+        if key in data and not (isinstance(data[key], list) and not data[key]):
+            raise PlanError(f"'{key}' is present and not an empty list (not supported)")
     # Absent resource_changes == nothing planned (only reached once the checks above passed).
     raw = data.get("resource_changes", [])
     if not isinstance(raw, list):

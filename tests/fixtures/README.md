@@ -32,6 +32,44 @@ Notes:
 - `forget` carries `action_reason: delete_because_no_resource_config`, the same as a
   real delete. Rules must use `actions`, never `action_reason`.
 
+## opentofu/ (generated, not hand-edited)
+
+The same 16 scenarios as `real/`, generated with **OpenTofu 1.13.9** (darwin_arm64) by
+`python scripts/make_fixtures.py --binary <tofu> --out tests/fixtures/opentofu`.
+
+Compared with the Terraform 1.17.2 files of the same name: `format_version` ("1.2"), the exact
+`actions` lists, `action_reason`, `change.importing`, `errored` (false) and whether
+`resource_changes` is present are **identical in all 16 scenarios**. The one difference:
+
+| Top-level key | Terraform 1.17.2 | OpenTofu 1.13.9 |
+|---|---|---|
+| `errored` | present, boolean | present, boolean |
+| `complete` | present, boolean | **absent** |
+| `applyable` | present, boolean | **absent** |
+
+planguard therefore needs `plan_source = "opentofu"` in its config to accept these files.
+The three `import*` files are refused in both modes (`change.importing`).
+
+## partial/ (generated): are partial plans recognisable?
+
+Two resources `a` and `b`, both changed (`input` "1" -> "2"), planned three ways. Files:
+`partial/<tool>/two_full.json`, `two_target.json` (`-target=terraform_data.a`) and, for
+OpenTofu only, `two_exclude.json` (`-exclude=terraform_data.b`; Terraform 1.17.2 has no
+`-exclude`).
+
+| Tool | Plan | `resource_changes` | `complete` | `applyable` | Any other signal? |
+|---|---|---|---|---|---|
+| Terraform 1.17.2 | full | a, b | true | true | n/a |
+| Terraform 1.17.2 | `-target=a` | a | **false** | true | `complete` is the signal |
+| OpenTofu 1.13.9 | full | a, b | absent | absent | n/a |
+| OpenTofu 1.13.9 | `-target=a` | a | absent | absent | **none** (same key set; only the lists are shorter and ids differ) |
+| OpenTofu 1.13.9 | `-exclude=b` | a | absent | absent | **none** (same as above) |
+
+In OpenTofu the only differences from the full plan are derived content (fewer entries in
+`resource_changes` and `planned_values`, random resource ids). A heuristic such as "configured
+resources missing from `planned_values`" would also fire for legitimate `count = 0`, empty
+`for_each` and destroyed resources, so it is not a reliable signal and planguard does not use it.
+
 ## handmade
 
 Hand-written, NOT verified against a real plan. They exist only to test that

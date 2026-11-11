@@ -9,8 +9,8 @@ documented in CLAUDE.md).
 Output: tests/fixtures/real/<scenario>.json  (output of `show -json <planfile>`)
 
 Usage:
-    python scripts/make_fixtures.py [--binary terraform|tofu|PATH] [SCENARIO ...]
-With no SCENARIO names, all scenarios are generated.
+    python scripts/make_fixtures.py [--binary terraform|tofu|PATH] [--out DIR] [SCENARIO ...]
+With no SCENARIO names, all default scenarios are generated.
 """
 
 from __future__ import annotations
@@ -114,7 +114,16 @@ class Scenario:
     baseline: Files | None = None  # applied first if not None
     producer: Files | None = None  # applied in ./producer before anything else
     note: str = ""
+    plan_args: tuple[str, ...] = ()  # extra arguments for `plan` (e.g. -target=...)
+    default: bool = True  # generated when no scenario names are given
+    tools: tuple[str, ...] = ()  # binaries that support it (empty = all), e.g. ("tofu",)
     extra: Files = field(default_factory=dict)  # files present in both phases
+
+
+def two(value: str) -> str:
+    return "".join(
+        f'resource "terraform_data" "{n}" {{\n  input = "{value}"\n}}\n' for n in ("a", "b")
+    )
 
 
 SCENARIOS: dict[str, Scenario] = {
@@ -130,6 +139,17 @@ SCENARIOS: dict[str, Scenario] = {
     "read": Scenario(planned={"main.tf": READ_DEFERRED}, producer=PRODUCER),
     "read_immediate": Scenario(planned={"main.tf": READ_IMMEDIATE}, producer=PRODUCER),
     "empty": Scenario(planned={"main.tf": ""}),
+    # two resources, both changed; plan untargeted / with -target / with -exclude (partial plans)
+    # (not in the default set: they are the partial-plan probes in tests/fixtures/partial/)
+    "two_full": Scenario(baseline={"main.tf": two("1")}, planned={"main.tf": two("2")}, default=False),
+    "two_target": Scenario(
+        baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
+        plan_args=("-target=terraform_data.a",), default=False,
+    ),
+    "two_exclude": Scenario(  # Terraform 1.17.2 has no -exclude; OpenTofu 1.13.9 does
+        baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
+        plan_args=("-exclude=terraform_data.b",), default=False, tools=("tofu",),
+    ),
     # import block: plan shows change.importing; actions are ["update"] / ["delete","create"] / ["no-op"]
     "import": Scenario(planned={"main.tf": 'resource "terraform_data" "example" {\n  input = "a"\n}\n' + IMPORT_BLOCK}),
     "import_replace": Scenario(planned={"main.tf": res(input_value="a") + IMPORT_BLOCK}),
@@ -190,7 +210,7 @@ def make_scenario(binary: str, name: str, sc: Scenario) -> dict:
             init_apply(binary, work, env)
         write_files(work, sc.planned)
         run(binary, ["init", "-input=false", "-no-color"], work, env)
-        run(binary, ["plan", "-input=false", "-no-color", "-out=tfplan"], work, env)
+        run(binary, ["plan", "-input=false", "-no-color", "-out=tfplan", *sc.plan_args], work, env)
         raw = run(binary, ["show", "-json", "tfplan"], work, env)
     # temp dir (state, plan, .terraform) is deleted on leaving the `with` block
     return json.loads(raw)
@@ -199,19 +219,26 @@ def make_scenario(binary: str, name: str, sc: Scenario) -> dict:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--binary", help="terraform or tofu executable (default: auto-detect)")
+    ap.add_argument("--out", type=Path, default=OUT_DIR,
+                    help=f"output directory (default: {OUT_DIR.relative_to(ROOT)})")
     ap.add_argument("scenarios", nargs="*", help=f"subset of: {', '.join(SCENARIOS)}")
     args = ap.parse_args(argv)
     unknown = set(args.scenarios) - set(SCENARIOS)
     if unknown:
         ap.error(f"unknown scenario(s): {', '.join(sorted(unknown))}")
     binary = find_binary(args.binary)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for name in args.scenarios or SCENARIOS:
+    out_dir = args.out.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tool = Path(binary).name
+    names = args.scenarios or [n for n, sc in SCENARIOS.items() if sc.default]
+    for name in names:
+        if SCENARIOS[name].tools and tool not in SCENARIOS[name].tools:
+            ap.error(f"scenario {name!r} needs one of {SCENARIOS[name].tools}, not {tool!r}")
         data = make_scenario(binary, name, SCENARIOS[name])
-        out = OUT_DIR / f"{name}.json"
+        out = out_dir / f"{name}.json"
         out.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         summary = [(rc.get("address"), rc["change"]["actions"]) for rc in data.get("resource_changes", [])]
-        print(f"{name:15s} -> {out.relative_to(ROOT)}  {summary if 'resource_changes' in data else 'NO resource_changes KEY'}")
+        print(f"{name:15s} -> {out}  {summary if 'resource_changes' in data else 'NO resource_changes KEY'}")
     return 0
 
 

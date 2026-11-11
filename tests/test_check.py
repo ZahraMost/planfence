@@ -32,3 +32,18 @@ def test_compliant_plan_has_no_violations():
     }
     assert run("update", cfg) == []
     assert run("empty", cfg) == []
+
+
+def test_deposed_entries_are_ordered_by_address_then_deposed_then_rule():
+    from planguard.rules import check
+    from tests.conftest import make_plan
+
+    cfg = parse_config({"enabled_rules": ["no-delete", "stateful-protect"], "stateful": {"types": ["a"]}})
+    entries = [("a.b", "a", ["delete"], "0002"), ("a.b", "a", ["delete"], "0001"), ("a.b", "a", ["delete"])]
+    for order in (entries, list(reversed(entries))):
+        got = [(v.deposed, v.rule) for v in check(parse_plan(make_plan(*order)).changes, cfg)]
+        assert got == [
+            (None, "no-delete"), (None, "stateful-protect"),
+            ("0001", "no-delete"), ("0001", "stateful-protect"),
+            ("0002", "no-delete"), ("0002", "stateful-protect"),
+        ]

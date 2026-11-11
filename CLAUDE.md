@@ -194,6 +194,9 @@ or any network use other than `pip install` and Terraform's own init.
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N
   sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
+- scripts/mutation_check.py: 75 source mutations run against temp copies of src/ (never
+  edits src/). Every mutant must be KILLED or listed in its EQUIVALENT dict with a
+  reason; add a test for any survivor. Run it after changing rules/parser/config/cli.
 - Tests honour PLANGUARD_SRC (see tests/conftest.py SRC) so subprocess tests can
   run against another copy of src/.
 - When unsure about Terraform behaviour, say so and ask me to verify with a

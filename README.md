@@ -188,6 +188,10 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
+# mutation testing: applies 75 small source mutations to temp copies of src/ and checks
+# that the tests notice each one (never edits src/ itself; about 1-2 minutes)
+.venv/bin/python scripts/mutation_check.py
+
 # regenerate real fixtures (needs terraform or tofu; uses only built-in terraform_data,
 # throwaway temp directories and local state, creates nothing real)
 .venv/bin/python scripts/make_fixtures.py --binary "$(command -v terraform)" [scenario ...]

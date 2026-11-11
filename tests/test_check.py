@@ -1,6 +1,6 @@
-from planguard.config import parse_config
-from planguard.parser import parse_plan
-from planguard.rules import check
+from planfence.config import parse_config
+from planfence.parser import parse_plan
+from planfence.rules import check
 from tests.conftest import load_fixture
 
 
@@ -35,7 +35,7 @@ def test_compliant_plan_has_no_violations():
 
 
 def test_deposed_entries_are_ordered_by_address_then_deposed_then_rule():
-    from planguard.rules import check
+    from planfence.rules import check
     from tests.conftest import make_plan
 
     cfg = parse_config({"enabled_rules": ["no-delete", "stateful-protect"], "stateful": {"types": ["a"]}})

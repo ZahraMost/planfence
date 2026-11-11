@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
-from planguard.config import ConfigError, load_config, parse_config
-from planguard.parser import PlanError, load_plan, parse_plan
+from planfence import cli
+from planfence.config import ConfigError, load_config, parse_config
+from planfence.parser import PlanError, load_plan, parse_plan
 from tests.test_parser import BAD_PLANS
 from tests.conftest import make_plan
 
@@ -176,7 +176,7 @@ def test_other_checks_still_apply_in_opentofu_mode():
 
 def test_opentofu_partial_plans_have_no_signal_and_are_accepted():
     """-target / -exclude plans from OpenTofu look exactly like complete plans (see
-    tests/fixtures/README.md). planguard cannot refuse them; documented limitation."""
+    tests/fixtures/README.md). planfence cannot refuse them; documented limitation."""
     for name in ("two_target", "two_exclude"):
         data = json.loads((FIX / "partial" / "opentofu" / f"{name}.json").read_text(encoding="utf-8"))
         assert "complete" not in data and "applyable" not in data

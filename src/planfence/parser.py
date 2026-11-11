@@ -129,7 +129,7 @@ def _parse_change(index: int, item: object) -> Change:
     if not all(isinstance(a, str) for a in actions) or tuple(actions) not in KNOWN_ACTIONS:
         raise PlanError(f"{where}: unknown 'change.actions' list")
     if change.get("importing") is not None:
-        # An import operation happens in addition to the actions; planguard cannot judge it.
+        # An import operation happens in addition to the actions; planfence cannot judge it.
         raise PlanError(f"{where}: 'change.importing' is present (import operations are not supported)")
     deposed = None
     if "deposed" in item:
@@ -206,7 +206,7 @@ def parse_plan(data: object, plan_source: str = "terraform", state_only_plans: s
         raise PlanError("plan is marked errored")
     if "complete" in data and not data["complete"]:
         raise PlanError("plan is not marked complete")
-    # Content outside resource_changes that can still act at apply: planguard cannot
+    # Content outside resource_changes that can still act at apply: planfence cannot
     # judge it, so anything but absent / [] is refused (fail closed).
     for key in _UNJUDGEABLE_TOP_LEVEL:
         if key in data and not (isinstance(data[key], list) and not data[key]):

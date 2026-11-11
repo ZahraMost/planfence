@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from planguard import __main__ as entry
-from planguard import cli
+from planfence import __main__ as entry
+from planfence import cli
 from tests.conftest import SRC, fixture_path, make_plan
 
 
@@ -20,7 +20,7 @@ CFG = 'enabled_rules = ["no-delete"]\n'
 
 @pytest.fixture
 def cfg(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text(CFG, encoding="utf-8")
     return p
 
@@ -175,7 +175,7 @@ def test_help_exits_0_and_usage_errors_2(capsys):
 def sub(args, env_extra=None, stdout=subprocess.PIPE, pythonpath=SRC):
     env = dict(os.environ, PYTHONPATH=str(pythonpath), **(env_extra or {}))
     return subprocess.run(
-        [sys.executable, "-m", "planguard", *map(str, args)],
+        [sys.executable, "-m", "planfence", *map(str, args)],
         stdout=stdout, stderr=subprocess.PIPE, text=True, env=env,
     )
 
@@ -202,8 +202,8 @@ def test_ascii_only_terminal_real_process(cfg, tmp_path):
 
 def test_import_failure_outside_main_exits_2(tmp_path):
     broken = tmp_path / "pkgroot"
-    shutil.copytree(SRC / "planguard", broken / "planguard", ignore=shutil.ignore_patterns("__pycache__"))
-    (broken / "planguard" / "cli.py").write_text("raise RuntimeError('import-time failure')\n", encoding="utf-8")
+    shutil.copytree(SRC / "planfence", broken / "planfence", ignore=shutil.ignore_patterns("__pycache__"))
+    (broken / "planfence" / "cli.py").write_text("raise RuntimeError('import-time failure')\n", encoding="utf-8")
     proc = sub([fixture_path("update")], pythonpath=broken)
     assert proc.returncode == 2
     assert "OK" not in proc.stdout
@@ -211,7 +211,7 @@ def test_import_failure_outside_main_exits_2(tmp_path):
 
 def test_syntax_error_in_module_exits_2(tmp_path):
     broken = tmp_path / "pkgroot"
-    shutil.copytree(SRC / "planguard", broken / "planguard", ignore=shutil.ignore_patterns("__pycache__"))
-    (broken / "planguard" / "rules.py").write_text("def (:\n", encoding="utf-8")
+    shutil.copytree(SRC / "planfence", broken / "planfence", ignore=shutil.ignore_patterns("__pycache__"))
+    (broken / "planfence" / "rules.py").write_text("def (:\n", encoding="utf-8")
     proc = sub([fixture_path("update")], pythonpath=broken)
     assert proc.returncode == 2

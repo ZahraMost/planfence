@@ -5,10 +5,11 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ## [0.1.0] - Unreleased
 
 First release candidate. Not tagged; the package version is still `0.0.1`.
+The project was formerly named planguard (renamed because that name collides with an existing PyPI project and its command); no alias is kept.
 
 ### Added
-- planguard CLI: checks the JSON from `terraform show -json` / `tofu show -json` against a
-  `planguard.toml` contract. Text and `--format json` output, `--version`.
+- planfence CLI: checks the JSON from `terraform show -json` / `tofu show -json` against a
+  `planfence.toml` contract. Text and `--format json` output, `--version`.
 - Rules: `no-delete`, `no-replace`, `scope` (custom `*` / `?` matcher), `stateful-protect`, `budget`.
 - `plan_source = "terraform" | "opentofu"` (OpenTofu plan JSON has no `complete` / `applyable`).
 - `state_only_plans = "allow" | "refuse"` to refuse plans whose only effects are output changes,
@@ -21,9 +22,9 @@ First release candidate. Not tagged; the package version is still `0.0.1`.
   GitHub Actions in use.
 
 ### Security
-- planguard is fail-closed: exit 0 only if the plan was fully understood and every enabled rule passed; every other
+- planfence is fail-closed: exit 0 only if the plan was fully understood and every enabled rule passed; every other
   failure, including output errors and startup failures, exits 2 (violations exit 1).
-- Plans with things planguard cannot judge are refused (exit 2): `importing`, `action_invocations`,
+- Plans with things planfence cannot judge are refused (exit 2): `importing`, `action_invocations`,
   `deferred_changes`, unknown actions, errored or incomplete plans.
 - `scope` treats every move as a change and requires both the new and the previous address to be
   allowlisted.

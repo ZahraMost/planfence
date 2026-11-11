@@ -2,8 +2,8 @@ import time
 
 import pytest
 
-from planguard.parser import parse_plan
-from planguard.rules import Violation, glob_match, scope, stateful_protect
+from planfence.parser import parse_plan
+from planfence.rules import Violation, glob_match, scope, stateful_protect
 from tests.conftest import load_fixture, make_plan
 
 

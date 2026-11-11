@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from planguard.config import ConfigError, load_config, parse_config
+from planfence.config import ConfigError, load_config, parse_config
 
 CASES = [
     ({"enabled_rules": ["no-delete", "no-delete"]}, "duplicate rule id"),

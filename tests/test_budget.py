@@ -1,7 +1,7 @@
 import pytest
 
-from planguard.parser import parse_plan
-from planguard.rules import Violation, budget
+from planfence.parser import parse_plan
+from planfence.rules import Violation, budget
 from tests.conftest import load_fixture, make_plan
 
 
@@ -91,7 +91,7 @@ def test_no_limits_configured_means_no_violations():
 
 
 def test_non_budget_violations_have_no_numbers():
-    from planguard.rules import no_delete
+    from planfence.rules import no_delete
 
     (v,) = no_delete(changes("delete"))
     assert (v.count, v.limit) == (None, None)

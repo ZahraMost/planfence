@@ -1,8 +1,8 @@
 # EXAMPLE ONLY - copy into your own repository's .github/workflows/ and adapt.
 # It is deliberately kept outside .github/workflows/ here so it does not run
-# in the planguard repo itself.
+# in the planfence repo itself.
 #
-# Flow: terraform plan -> terraform show -json -> planguard. Nothing is applied.
+# Flow: terraform plan -> terraform show -json -> planfence. Nothing is applied.
 name: terraform-plan-guard
 
 on:
@@ -29,10 +29,10 @@ jobs:
 
       # OpenTofu users: use `tofu plan` / `tofu show -json` (e.g. opentofu/setup-opentofu), set
       # plan_source = "opentofu" in the PROTECTED contract, and NEVER pass -target or -exclude:
-      # planguard cannot recognise an OpenTofu partial plan (Terraform marks it complete=false).
+      # planfence cannot recognise an OpenTofu partial plan (Terraform marks it complete=false).
       #
       # Provide your own provider credentials/backend config here (for example via
-      # OIDC). planguard itself needs no credentials and never contacts the cloud.
+      # OIDC). planfence itself needs no credentials and never contacts the cloud.
       - name: Terraform plan
         run: |
           terraform init -input=false
@@ -43,26 +43,26 @@ jobs:
           terraform show -json tfplan > plan.json
           sha256sum tfplan > tfplan.sha256
 
-      # Pin planguard to a tag (part of the trust boundary). NOTE: the tag v0.1.0 does not exist yet;
+      # Pin planfence to a tag (part of the trust boundary). NOTE: the tag v0.1.0 does not exist yet;
       # nothing has been released or tagged. Use the tag or commit you trust once there is one.
-      # planguard has no runtime dependencies.
-      - name: Install planguard
-        run: python -m pip install "git+https://github.com/ZahraMost/planguard.git@v0.1.0"
+      # planfence has no runtime dependencies.
+      - name: Install planfence
+        run: python -m pip install "git+https://github.com/ZahraMost/planfence.git@v0.1.0"
 
       # SECURITY: load the contract from the BASE branch, not from the PR checkout, so the
-      # PR author cannot weaken it. (Alternatively protect planguard.toml with CODEOWNERS
+      # PR author cannot weaken it. (Alternatively protect planfence.toml with CODEOWNERS
       # and branch protection.)
       - name: Load contract from the base branch
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
           git fetch --no-tags --depth=1 origin "$BASE_REF"
-          git show "origin/$BASE_REF:planguard.toml" > "$RUNNER_TEMP/planguard.toml"
+          git show "origin/$BASE_REF:planfence.toml" > "$RUNNER_TEMP/planfence.toml"
 
       # Exit 0 = within contract, 1 = violation, 2 = plan/config not understood.
       # Any non-zero exit fails the job (fail-closed). A pass is not an approval.
       - name: Check plan against contract
-        run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"
+        run: planfence plan.json --config "$RUNNER_TEMP/planfence.toml"
 
       # If a later step applies, apply EXACTLY this plan file (never re-plan):
       #   sha256sum -c tfplan.sha256 && terraform apply tfplan

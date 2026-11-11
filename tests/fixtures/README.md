@@ -66,7 +66,7 @@ Compared with the Terraform 1.17.2 files of the same name: `format_version` ("1.
 | `complete` | present, boolean | **absent** |
 | `applyable` | present, boolean | **absent** |
 
-planguard therefore needs `plan_source = "opentofu"` in its config to accept these files.
+planfence therefore needs `plan_source = "opentofu"` in its config to accept these files.
 The three `import*` files are refused in both modes (`change.importing`).
 
 ## partial/ (generated): are partial plans recognisable?
@@ -87,7 +87,7 @@ OpenTofu only, `two_exclude.json` (`-exclude=terraform_data.b`; Terraform 1.17.2
 In OpenTofu the only differences from the full plan are derived content (fewer entries in
 `resource_changes` and `planned_values`, random resource ids). A heuristic such as "configured
 resources missing from `planned_values`" would also fire for legitimate `count = 0`, empty
-`for_each` and destroyed resources, so it is not a reliable signal and planguard does not use it.
+`for_each` and destroyed resources, so it is not a reliable signal and planfence does not use it.
 
 ## modes/ (generated): plan flags and modes, real output of both tools
 
@@ -95,7 +95,7 @@ resources missing from `planned_values`" would also fire for legitimate `count =
 `scripts/make_fixtures.py --out tests/fixtures/modes/<dir> replace_flag refresh_only refresh_only_output_drift`
 (non-default scenarios, built-in resources only). Verified by `tests/test_plan_modes.py`.
 
-| Scenario | How it is produced | `resource_changes` | Other top-level content | planguard (strictest contract) |
+| Scenario | How it is produced | `resource_changes` | Other top-level content | planfence (strictest contract) |
 |---|---|---|---|---|
 | `replace_flag` | unchanged config, `plan -replace=terraform_data.example` | `terraform_data.example` -> `["delete","create"]`, `action_reason: replace_by_request`, **no** `replace_paths` | none | exit 1 (`no-replace`, budget) |
 | `refresh_only` | unchanged config, `plan -refresh-only` | **key absent** | no `resource_drift`, no `output_changes`; Terraform: `applyable: false` | exit 0 |
@@ -104,9 +104,9 @@ resources missing from `planned_values`" would also fire for legitimate `count =
 Observations that matter:
 - `-replace` is indistinguishable from a config-driven replacement except for `action_reason`
   (`replace_by_request` vs `replace_because_cannot_update`) and the missing `replace_paths`;
-  planguard judges `actions` only, so `no-replace` catches both.
+  planfence judges `actions` only, so `no-replace` catches both.
 - A `-refresh-only` plan that would change the state (here an output; Terraform reports it as
-  `applyable: true`) has nothing in `resource_changes`, so planguard passes it. This is a documented
+  `applyable: true`) has nothing in `resource_changes`, so planfence passes it. This is a documented
   limitation: `output_changes` and `resource_drift` are not checked.
 - **Not produced:** real `resource_drift` (a managed resource changed outside Terraform). It cannot
   be created offline with built-in resources (`terraform_data` has no external system), and editing
@@ -146,10 +146,10 @@ for output actions that are not exactly `["no-op"]`.
 ## handmade
 
 Hand-written, NOT verified against a real plan. They exist only to test that
-planguard fails closed (exit 2). Terraform 1.17.2 cannot produce them with
+planfence fails closed (exit 2). Terraform 1.17.2 cannot produce them with
 built-in resources only (no `-allow-deferral` flag in this build, and the
 built-in provider defines no actions), so the exact JSON shape of the entries
-is unverified; only the presence of the top-level key matters to planguard.
+is unverified; only the presence of the top-level key matters to planfence.
 Both are `real/noop.json` plus one extra key.
 
 | File | Extra key | Why handmade |

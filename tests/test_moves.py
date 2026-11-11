@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
-from planguard.parser import Change, PlanError, parse_plan
-from planguard.rules import Violation, scope
+from planfence import cli
+from planfence.parser import Change, PlanError, parse_plan
+from planfence.rules import Violation, scope
 from tests.conftest import make_plan
 
 MOVED = Path(__file__).resolve().parent / "fixtures" / "moved"
@@ -41,7 +41,7 @@ def write_cfg(tmp_path, tool, rules, allow=None, extra=""):
     lines.append(extra)
     if allow is not None:
         lines += ["[scope]", f"allow = {json.dumps(allow)}"]
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return p
 
@@ -76,7 +76,7 @@ def test_only_one_of_the_two_addresses_allowed_is_a_violation(capsys, tmp_path, 
     assert code == 1
     assert out.splitlines() == [
         f"[error] scope {new} (terraform_data) {action} moved-from={old}",
-        "planguard: FAIL - 1 violation(s)",
+        "planfence: FAIL - 1 violation(s)",
     ]
 
 

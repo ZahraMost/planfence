@@ -1,4 +1,4 @@
-"""Manual mutation testing for planguard (standard library only).
+"""Manual mutation testing for planfence (standard library only).
 
 For every mutation below the script copies src/ to a fresh temp directory,
 applies ONE small source change to the copy, runs the test suite against that
@@ -38,7 +38,7 @@ SRC = ROOT / "src"
 @dataclass(frozen=True)
 class Mutation:
     id: str
-    file: str  # relative to src/planguard/
+    file: str  # relative to src/planfence/
     old: str  # must occur exactly once in the file
     new: str
     desc: str
@@ -154,8 +154,8 @@ MUTATIONS: list[Mutation] = [
       "invalid return values pass through"),
     M("M55", "__main__.py", "    except BaseException as exc:  # incl.", "    except Exception as exc:  # incl.",
       "run() lets KeyboardInterrupt/SystemExit escape"),
-    M("M56", "__main__.py", '_note("planguard: error: could not write output")\n        code = EXIT_ERROR',
-      '_note("planguard: error: could not write output")', "failing final flush keeps the old exit code"),
+    M("M56", "__main__.py", '_note("planfence: error: could not write output")\n        code = EXIT_ERROR',
+      '_note("planfence: error: could not write output")', "failing final flush keeps the old exit code"),
     # -- second round: tests that may pass for the wrong reason
     M("M57", "config.py", "    if bad:\n", "    if False:\n", "unknown rule ids accepted"),
     M("M58", "config.py", "if (rule in enabled) != (section in data):",
@@ -278,7 +278,7 @@ MUTATIONS: list[Mutation] = [
     M("M120", "cli.py", "    except Exception:  # PackageNotFoundError or any broken-metadata problem",
       "    except ImportError:  # PackageNotFoundError or any broken-metadata problem",
       "--version only falls back when the metadata is missing, not when it is broken"),
-    M("M121", "cli.py", 'version=f"planguard {_version()}"', "version=_version()", "--version output lacks the program name"),
+    M("M121", "cli.py", 'version=f"planfence {_version()}"', "version=_version()", "--version output lacks the program name"),
 ]
 
 # Mutants that cannot change observable behaviour. id -> reason.
@@ -309,9 +309,9 @@ def run_pytest(src_copy: Path, timeout: int) -> tuple[str, str]:
     env = dict(
         os.environ,
         PYTHONPATH=str(src_copy),
-        PLANGUARD_SRC=str(src_copy),
-        PLANGUARD_FUZZ_N="4000",
-        PLANGUARD_SKIP_SLOW="1",  # the wheel build/install test is about packaging, not source mutations
+        PLANFENCE_SRC=str(src_copy),
+        PLANFENCE_FUZZ_N="4000",
+        PLANFENCE_SKIP_SLOW="1",  # the wheel build/install test is about packaging, not source mutations
         PYTHONDONTWRITEBYTECODE="1",
     )
     cmd = [sys.executable, "-m", "pytest", "-x", "-q", "--no-header", "-p", "no:cacheprovider",
@@ -330,10 +330,10 @@ def run_pytest(src_copy: Path, timeout: int) -> tuple[str, str]:
 
 
 def run_mutant(mut: Mutation, timeout: int) -> tuple[str, str]:
-    with tempfile.TemporaryDirectory(prefix=f"planguard-mut-{mut.id}-") as tmp:
+    with tempfile.TemporaryDirectory(prefix=f"planfence-mut-{mut.id}-") as tmp:
         copy = Path(tmp) / "src"
         shutil.copytree(SRC, copy, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
-        target = copy / "planguard" / mut.file
+        target = copy / "planfence" / mut.file
         text = target.read_text(encoding="utf-8")
         count = text.count(mut.old)
         if count != 1:
@@ -369,7 +369,7 @@ def main(argv: list[str] | None = None) -> int:
     before = tree_hash(SRC)
 
     # Baseline: the unmutated copy must pass, otherwise "killed" would mean nothing.
-    with tempfile.TemporaryDirectory(prefix="planguard-mut-base-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="planfence-mut-base-") as tmp:
         copy = Path(tmp) / "src"
         shutil.copytree(SRC, copy, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
         status, detail = run_pytest(copy, args.timeout)

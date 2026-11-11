@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from planguard.config import Config
-    from planguard.parser import Change
+    from planfence.config import Config
+    from planfence.parser import Change
 
 SEVERITY_ERROR = "error"
 SEVERITY_CRITICAL = "critical"

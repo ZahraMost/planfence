@@ -310,7 +310,7 @@ def make_scenario(binary: str, name: str, sc: Scenario) -> tuple[dict, dict]:
     """Returns (plan JSON, extras) where extras may hold `text` (human plan) and `providers` (versions)."""
     env = dict(os.environ, CHECKPOINT_DISABLE="1", TF_IN_AUTOMATION="1")
     extras: dict = {}
-    with tempfile.TemporaryDirectory(prefix=f"planguard-{name}-") as tmp:
+    with tempfile.TemporaryDirectory(prefix=f"planfence-{name}-") as tmp:
         work = Path(tmp)
         if sc.producer is not None:
             producer = work / "producer"

@@ -10,13 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
+from planfence import cli
 
 ROOT = Path(__file__).resolve().parent.parent
 FIX = ROOT / "tests" / "fixtures"
 PROVIDERS = FIX / "providers" / "terraform"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
-EXAMPLE = ROOT / "examples" / "github-actions" / "planguard-example.yml"
+EXAMPLE = ROOT / "examples" / "github-actions" / "planfence-example.yml"
 
 needs_git = pytest.mark.skipif(shutil.which("git") is None, reason="git is required to list tracked files")
 
@@ -54,7 +54,7 @@ def test_no_unexplained_your_org_placeholder_remains_in_tracked_files():
 def test_codeowners_example_uses_the_real_owner():
     lines = [ln.split() for ln in (ROOT / "examples" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
              if ln.strip() and not ln.strip().startswith("#")]
-    assert {parts[0] for parts in lines} == {"/planguard.toml", "/.github/", "/CODEOWNERS"}
+    assert {parts[0] for parts in lines} == {"/planfence.toml", "/.github/", "/CODEOWNERS"}
     assert all(parts[1:] == ["@ZahraMost"] for parts in lines), lines
 
 
@@ -68,8 +68,8 @@ def test_readme_codeowners_block_matches_the_example_file():
 
 def test_example_workflow_install_url_and_the_missing_tag_comment():
     text = EXAMPLE.read_text(encoding="utf-8")
-    assert 'pip install "git+https://github.com/ZahraMost/planguard.git@v0.1.0"' in text
-    idx = text.index("git+https://github.com/ZahraMost/planguard.git@v0.1.0")
+    assert 'pip install "git+https://github.com/ZahraMost/planfence.git@v0.1.0"' in text
+    idx = text.index("git+https://github.com/ZahraMost/planfence.git@v0.1.0")
     comment_before = text[:idx].splitlines()[-6:]
     assert any("does not exist yet" in ln and ln.strip().startswith("#") for ln in comment_before), comment_before
 
@@ -97,15 +97,15 @@ def test_readme_starts_with_the_status_block_before_any_heading():
     assert "Status: pre-release (0.0.x), experimental." in block
     assert "narrow guardrail, not a security audit" in block
     assert "'this plan stays inside the contract you wrote', nothing more" in block
-    assert "(see [What planguard does NOT claim](#what-planguard-does-not-claim))" in block
-    assert "## What planguard does NOT claim" in "\n".join(lines)
+    assert "(see [What planfence does NOT claim](#what-planfence-does-not-claim))" in block
+    assert "## What planfence does NOT claim" in "\n".join(lines)
 
 
 # ---- 4. the real plan example (Terraform 1.17.2, hashicorp/local + hashicorp/random) ----------------------------
 
 EXPECTED_OUTPUT = (
     "[error] no-replace local_file.hello (local_file) delete,create\n"
-    "planguard: FAIL - 1 violation(s)\n"
+    "planfence: FAIL - 1 violation(s)\n"
 )
 
 
@@ -134,8 +134,8 @@ def test_the_real_provider_fixture_is_a_content_replacement():
         "registry.terraform.io/hashicorp/local", "registry.terraform.io/hashicorp/random"}
 
 
-def test_exact_planguard_output_on_the_real_plan(capsys, tmp_path):
-    cfg = tmp_path / "planguard.toml"
+def test_exact_planfence_output_on_the_real_plan(capsys, tmp_path):
+    cfg = tmp_path / "planfence.toml"
     cfg.write_text('enabled_rules = ["no-replace"]\n', encoding="utf-8")
     code = cli.main([str(PROVIDERS / "local_file_replace.json"), "--config", str(cfg)])
     assert code == 1
@@ -143,7 +143,7 @@ def test_exact_planguard_output_on_the_real_plan(capsys, tmp_path):
 
 
 def test_a_replacement_is_not_a_plain_delete(capsys, tmp_path):
-    cfg = tmp_path / "planguard.toml"
+    cfg = tmp_path / "planfence.toml"
     cfg.write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")
     assert cli.main([str(PROVIDERS / "local_file_replace.json"), "--config", str(cfg)]) == 0
     capsys.readouterr()

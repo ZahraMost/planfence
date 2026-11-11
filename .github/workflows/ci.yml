@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      # planguard itself is NOT installed: the suite must pass from a bare checkout
+      # planfence itself is NOT installed: the suite must pass from a bare checkout
       # (pytest puts src/ on the path); `build` is for the packaging test.
       - name: Install test tools
         run: python -m pip install pytest build

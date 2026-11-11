@@ -1,8 +1,8 @@
-> **Status: pre-release (0.0.x), experimental.** planguard is a narrow guardrail, not a security audit:
+> **Status: pre-release (0.0.x), experimental.** planfence is a narrow guardrail, not a security audit:
 > a pass means 'this plan stays inside the contract you wrote', nothing more
-> (see [What planguard does NOT claim](#what-planguard-does-not-claim)).
+> (see [What planfence does NOT claim](#what-planfence-does-not-claim)).
 
-# planguard
+# planfence
 
 A deterministic guardrail for Terraform / OpenTofu plans. It reads the JSON from
 `terraform show -json <planfile>` and checks it against a small contract file,
@@ -10,36 +10,36 @@ answering one question before `apply`: **does this plan stay inside the contract
 
 - No network, no AI, no cloud credentials.
 - Python >= 3.11, standard library only (pytest is a dev-only dependency).
-- Fail-closed: if the plan is not fully understood, planguard never says "OK".
+- Fail-closed: if the plan is not fully understood, planfence never says "OK".
 
 ## Why
 
 AI-generated infrastructure code often passes `terraform validate` but makes
 changes nobody intended: deletes, replacements, changes outside the intended
-scope. planguard catches those cheaply and repeatably.
+scope. planfence catches those cheaply and repeatably.
 
 ## Quick start
 
 ```sh
 # from a checkout (no install needed)
-PYTHONPATH=src python -m planguard plan.json --config planguard.toml
+PYTHONPATH=src python -m planfence plan.json --config planfence.toml
 
-# or install it (provides the `planguard` command)
+# or install it (provides the `planfence` command)
 pip install .
 
 terraform plan -out=tfplan
 terraform show -json tfplan > plan.json
-planguard plan.json --config planguard.toml
+planfence plan.json --config planfence.toml
 ```
 
 ```
-$ planguard plan.json --config planguard.toml
+$ planfence plan.json --config planfence.toml
 [error] no-replace terraform_data.example (terraform_data) delete,create
 [critical] stateful-protect terraform_data.example (terraform_data) delete,create
-planguard: FAIL - 2 violation(s)
+planfence: FAIL - 2 violation(s)
 ```
 
-Options: `--config PATH` (default `./planguard.toml`; a missing file is an error),
+Options: `--config PATH` (default `./planfence.toml`; a missing file is an error),
 `--format text|json` (default `text`).
 
 ### Exit codes
@@ -93,19 +93,19 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
 In `terraform show -json` that resource is `["delete","create"]` (with `action_reason`
-`replace_because_cannot_update`), and the `random_pet` is a no-op. With this `planguard.toml`:
+`replace_because_cannot_update`), and the `random_pet` is a no-op. With this `planfence.toml`:
 
 ```toml
 enabled_rules = ["no-replace"]
 ```
 
-planguard reports:
+planfence reports:
 
 ```console
 $ terraform show -json tfplan > plan.json
-$ planguard plan.json --config planguard.toml
+$ planfence plan.json --config planfence.toml
 [error] no-replace local_file.hello (local_file) delete,create
-planguard: FAIL - 1 violation(s)
+planfence: FAIL - 1 violation(s)
 ```
 
 and exits with status 1. A replacement is not a plain delete, so `no-delete` alone would not have
@@ -130,7 +130,7 @@ How changes are counted:
 - A replacement counts as **one** change and **one** create for its type.
 - **Moves** (`moved` blocks) are described under "Moved resources" below: the `scope` rule treats every
   move as a change, but a pure move is not counted as a change for `budget`.
-- Plans containing things planguard cannot judge are **refused (exit 2)** rather than passed:
+- Plans containing things planfence cannot judge are **refused (exit 2)** rather than passed:
   a non-empty top-level `action_invocations` (Terraform actions) or `deferred_changes`, and any
   change with an `importing` object (an `import` block, even when the action is a no-op).
   Absent or empty is fine.
@@ -146,7 +146,7 @@ A resource that a `moved` block renames or relocates appears in `resource_change
 
 - **The bypass that existed.** `scope` used to look only at the new address, so a resource outside the
   allowlist could be moved to an allowed address and changed in the same plan. With the real fixture
-  `moved_update` and only `terraform_data.new` allowed, planguard passed although the resource being
+  `moved_update` and only `terraform_data.new` allowed, planfence passed although the resource being
   updated lived at `terraform_data.old`.
 - **The rule.** `scope` treats every move as a change, whatever its action (even `["no-op"]`), and a
   moved entry passes only if both its address and its `previous_address` match the allowlist; otherwise
@@ -159,13 +159,13 @@ A resource that a `moved` block renames or relocates appears in `resource_change
 - **Output.** Violations of moved entries show where they came from: text appends `moved-from=ADDR`
   (ASCII-escaped, after `deposed=`), JSON violation objects always have a `previous_address` field
   (`null` when there is none).
-- **Across pull requests.** planguard judges one plan at a time. A PR that moves a resource into scope
+- **Across pull requests.** planfence judges one plan at a time. A PR that moves a resource into scope
   and a later PR that changes it are each judged on its own against the allowlist; the contract is the
   allowlist, and a resource inside it may be changed however it got there.
 
-## Configuration: `planguard.toml`
+## Configuration: `planfence.toml`
 
-See [examples/planguard.toml](examples/planguard.toml).
+See [examples/planfence.toml](examples/planfence.toml).
 
 ```toml
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
@@ -196,7 +196,7 @@ aws_instance = 2
 - **Limits:** at most 500 `scope.allow` patterns, each at most 512 characters (more is exit 2).
   Patterns without wildcards and patterns of the form `prefix*` are matched with fast paths
   (same semantics); other wildcard patterns use a linear-scan matcher.
-- **Stateful types** are matched exactly (no wildcards). planguard ships **no default list**:
+- **Stateful types** are matched exactly (no wildcards). planfence ships **no default list**:
   deciding what is stateful in your infrastructure is your call.
 
 ## Output
@@ -228,11 +228,11 @@ and the message on stderr.
 
 ## OpenTofu
 
-Set `plan_source = "opentofu"` in the contract (`planguard.toml`; put it in the protected,
-base-branch copy, see "Using planguard safely in CI"). The default is `"terraform"`, which is
+Set `plan_source = "opentofu"` in the contract (`planfence.toml`; put it in the protected,
+base-branch copy, see "Using planfence safely in CI"). The default is `"terraform"`, which is
 exactly the strict behaviour described above. Any other value is exit 2.
 
-Why: **OpenTofu's plan JSON has no `complete` and no `applyable`**, while planguard's default
+Why: **OpenTofu's plan JSON has no `complete` and no `applyable`**, while planfence's default
 mode requires `errored` and `complete` to be present booleans (Terraform sets `complete` to
 `false` for partial plans). In `"opentofu"` mode:
 
@@ -247,32 +247,32 @@ plan_source = "opentofu"
 ```
 
 **Limitation: OpenTofu partial plans cannot be recognised.** Terraform marks a plan made with
-`-target` as `complete: false`, which planguard refuses. We compared OpenTofu 1.13.9 plans made
+`-target` as `complete: false`, which planfence refuses. We compared OpenTofu 1.13.9 plans made
 with `-target=...` and `-exclude=...` against the full plan of the same config: same top-level
 keys, same flags, same structure; the only differences are fewer entries (and random ids). There
-is no reliable signal, so planguard cannot tell and will judge only the resources that are in
+is no reliable signal, so planfence cannot tell and will judge only the resources that are in
 the plan. A trusted pipeline must therefore run `tofu plan` itself, **without `-target` or
-`-exclude`**, and apply exactly that plan. planguard cannot enforce this.
+`-exclude`**, and apply exactly that plan. planfence cannot enforce this.
 
 ## Plan modes and flags
 
-planguard sees only the finished plan JSON, not the command line that produced it.
+planfence sees only the finished plan JSON, not the command line that produced it.
 
-- **`-target`.** Terraform marks such a plan `complete: false`, and planguard refuses it (exit 2, in
+- **`-target`.** Terraform marks such a plan `complete: false`, and planfence refuses it (exit 2, in
   both `plan_source` modes whenever `complete` is present). OpenTofu gives no signal, so its targeted
   plans cannot be recognised; see the [OpenTofu](#opentofu) section and run `tofu plan` without
   `-target` / `-exclude`.
 - **`-refresh-only`.** Verified with real Terraform 1.17.2 and OpenTofu 1.13.9
   ([tests/fixtures/README.md](tests/fixtures/README.md)): the plan has **no `resource_changes` key**, so
-  planguard reports "0 changes" and exits 0, even with the strictest contract. That includes a refresh
+  planfence reports "0 changes" and exits 0, even with the strictest contract. That includes a refresh
   that would change the state: when a data source's remote state changed, the only trace is
-  `output_changes` (Terraform also reports `applyable: true`), which planguard does not check. Do not
+  `output_changes` (Terraform also reports `applyable: true`), which planfence does not check. Do not
   treat a pass on a refresh-only plan as "nothing will change"; applying it updates the state.
   Set `state_only_plans = "refuse"` to close this gap (see below).
   Drift of a managed resource (`resource_drift`) could not be produced offline and is not verified.
 - **`-replace=ADDR`.** The resource appears as `["delete","create"]` with
   `action_reason: replace_by_request` (and no `replace_paths`), indistinguishable by `actions` from a
-  config-driven replacement. planguard cannot know about the flag, so keep `no-replace` enabled if
+  config-driven replacement. planfence cannot know about the flag, so keep `no-replace` enabled if
   replacements are not allowed. `no-delete` does not fire on a replacement.
 
 ### Refusing state-only plans: `state_only_plans`
@@ -280,7 +280,7 @@ planguard sees only the finished plan JSON, not the command line that produced i
 Some plans change nothing in `resource_changes` yet still do something when applied: they update
 outputs, record drift, or only move resources between addresses. The default
 (`state_only_plans = "allow"`) keeps today's behaviour and does not look at them. With
-`state_only_plans = "refuse"` planguard exits 2 when the plan has **no resource changes** (no entry
+`state_only_plans = "refuse"` planfence exits 2 when the plan has **no resource changes** (no entry
 other than no-op or read; moves do not count as changes) **and** at least one of:
 
 - an `output_changes` entry whose actions are not exactly `["no-op"]`;
@@ -294,20 +294,20 @@ resource change (not refused); `-refresh-only` with real output drift is refused
 adds an output (`output_added_only`) is refused; a pure move is refused. `resource_drift` is verified
 only with a hand-made fixture, because real drift of a managed resource cannot be produced offline.
 Malformed `output_changes` / `resource_drift` in such a plan are refused as well. Use `"refuse"` for a
-CI gate: the gate should say "nothing happens that planguard did not judge". The default stays
+CI gate: the gate should say "nothing happens that planfence did not judge". The default stays
 `"allow"` so existing contracts keep working.
 
-## What planguard does NOT claim
+## What planfence does NOT claim
 
-planguard is a narrow guardrail, not a safety guarantee. It does **not** check:
+planfence is a narrow guardrail, not a safety guarantee. It does **not** check:
 
 - **security**: it does not know whether a change opens a port, widens a policy, or leaks data;
 - **cost**: it does not estimate or limit spend (the budget counts changes, not money);
 - **configuration correctness**: a plan can stay inside the contract and still be wrong;
-- **live infrastructure**: planguard itself reads only the plan file (and its config) and never contacts
+- **live infrastructure**: planfence itself reads only the plan file (and its config) and never contacts
   your cloud, state or providers. Creating the plan is different: `terraform plan` / `tofu plan`
   may contact providers, read and refresh state, and run data sources (for example `external`
-  runs a program), all before planguard starts;
+  runs a program), all before planfence starts;
 - **`output_changes`** or **`resource_drift`** in the plan JSON (v0.1 inspects `resource_changes` only).
   Example: a plan whose only changes are a deleted output (`output_changes`) or an out-of-band
   deleted database found during refresh (`resource_drift`), with an empty `resource_changes`,
@@ -347,28 +347,28 @@ Report vulnerabilities privately, see [SECURITY.md](SECURITY.md). Changes are li
   strings limited to 4096 characters (longer is exit 2, the value is never echoed), duplicate JSON keys rejected, no `eval`/`exec`,
   no network access.
 
-## Using planguard safely in CI
+## Using planfence safely in CI
 
-planguard only checks the plan you give it against the contract you give it. These four rules
+planfence only checks the plan you give it against the contract you give it. These four rules
 keep that meaningful.
 
 1. **Load the contract from a protected place.** If the same pull request can edit
-   `planguard.toml`, its author can weaken the contract (add `*` to `scope.allow`, raise the
+   `planfence.toml`, its author can weaken the contract (add `*` to `scope.allow`, raise the
    budget, empty the stateful list) and the check will pass. Read the contract from the
    **base branch**, not from the PR checkout, or protect it with **CODEOWNERS** plus
    **branch protection** (required review by the owners, required status check). The same goes for the
-   workflow file that runs planguard and for the planguard version you install: pin it and take
+   workflow file that runs planfence and for the planfence version you install: pin it and take
    it from a trusted source, not from the PR. See
-   [examples/github-actions/planguard-example.yml](examples/github-actions/planguard-example.yml),
-   which reads the contract with `git show origin/<base>:planguard.toml`.
+   [examples/github-actions/planfence-example.yml](examples/github-actions/planfence-example.yml),
+   which reads the contract with `git show origin/<base>:planfence.toml`.
 
-   The workflow file and the planguard version are part of the trust boundary: whoever can change
+   The workflow file and the planfence version are part of the trust boundary: whoever can change
    them can change what is checked. A CODEOWNERS file that covers all of them (see
    [examples/CODEOWNERS](examples/CODEOWNERS)), together with branch protection that requires
    code-owner review, protects the boundary:
 
    ```
-   /planguard.toml   @ZahraMost
+   /planfence.toml   @ZahraMost
    /.github/         @ZahraMost
    /CODEOWNERS       @ZahraMost
    ```
@@ -377,7 +377,7 @@ keep that meaningful.
 
 2. **Apply exactly the plan file you checked.** Run `terraform apply tfplan` with the same
    binary plan file that `terraform show -json` converted, and **never re-plan between check and
-   apply**: a fresh plan is a different plan that planguard has not seen. Terraform refuses a
+   apply**: a fresh plan is a different plan that planfence has not seen. Terraform refuses a
    saved plan whose state has since changed (a stale plan), which is what you want. To make
    sure the file did not change in between, record and verify a checksum:
 
@@ -385,7 +385,7 @@ keep that meaningful.
    terraform plan -out=tfplan
    terraform show -json tfplan > plan.json
    sha256sum tfplan > tfplan.sha256
-   planguard plan.json --config "$RUNNER_TEMP/planguard.toml"   # exit 0 required
+   planfence plan.json --config "$RUNNER_TEMP/planfence.toml"   # exit 0 required
    # later, in the apply step (same file, no new plan):
    sha256sum -c tfplan.sha256 && terraform apply tfplan
    ```
@@ -393,7 +393,7 @@ keep that meaningful.
    The binary plan and `plan.json` can contain secrets: do not publish them as artifacts.
 
    The example workflow only CHECKS: it creates the plan, converts it, loads the contract and
-   runs planguard; it never applies anything (a test enforces this, and that the same `tfplan`
+   runs planfence; it never applies anything (a test enforces this, and that the same `tfplan`
    file is used throughout, in the order plan, show, checksum, contract, check, with no second
    plan). If you add an apply step, it must use exactly that file, **ideally in the same job**
    so the binary plan never leaves the runner, and the apply should be gated by a
@@ -401,9 +401,9 @@ keep that meaningful.
    the trusted job: anyone who can edit the job can also edit the checksum step. Moving the
    binary plan to another job means uploading an artifact, and that artifact can contain secrets.
 
-3. **Know what planguard cannot see.** It reads `resource_changes` and nothing else. It does
+3. **Know what planfence cannot see.** It reads `resource_changes` and nothing else. It does
    not see provisioners (for example `local-exec` or `remote-exec` commands), data source side
-   effects (the `external` data source runs a program during `terraform plan`, before planguard
+   effects (the `external` data source runs a program during `terraform plan`, before planfence
    even starts), or what a `create` actually does (a created IAM policy, a new open security
    group, a module that does something surprising). It cannot judge attribute values at all.
 
@@ -411,20 +411,20 @@ keep that meaningful.
    contract", nothing more. It is a cheap, repeatable filter that should sit *in front of* human
    review, not replace it.
 
-5. **Pin what produces the plan.** planguard does not check `terraform_version`, provider versions
+5. **Pin what produces the plan.** planfence does not check `terraform_version`, provider versions
    or provider identities, and unknown properties in the JSON are ignored. Pin the Terraform/OpenTofu
    version and the providers in CI (commit the `.terraform.lock.hcl` lock file, set `required_version`
    and `required_providers`), and treat plans produced by any other version or provider set as
-   unverified: planguard was only verified with the versions listed under "Verified against".
+   unverified: planfence was only verified with the versions listed under "Verified against".
 
 ## CI
 
-Run planguard with a job timeout (e.g. `timeout-minutes: 5` in GitHub Actions) so an unexpectedly
+Run planfence with a job timeout (e.g. `timeout-minutes: 5` in GitHub Actions) so an unexpectedly
 huge or adversarial plan can never hang your pipeline. Both workflows in this repo set one.
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the test suite on Python 3.11-3.13.
-- [examples/github-actions/planguard-example.yml](examples/github-actions/planguard-example.yml)
-  shows how to run planguard on a plan in your own pipeline (copy it into your repo; it is not
+- [examples/github-actions/planfence-example.yml](examples/github-actions/planfence-example.yml)
+  shows how to run planfence on a plan in your own pipeline (copy it into your repo; it is not
   active here).
 
 ## Development
@@ -434,7 +434,7 @@ python3.13 -m venv .venv
 .venv/bin/python -m pip install pytest
 .venv/bin/python -m pytest
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
-# (about 5 s); set PLANGUARD_FUZZ_N to change the count
+# (about 5 s); set PLANFENCE_FUZZ_N to change the count
 
 # quality gates (dev tools only, no runtime dependencies; CI runs them as a separate job)
 .venv/bin/python -m pip install ruff mypy

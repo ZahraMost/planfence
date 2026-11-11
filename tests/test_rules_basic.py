@@ -1,7 +1,7 @@
 import pytest
 
-from planguard.parser import parse_plan
-from planguard.rules import Violation, no_delete, no_replace
+from planfence.parser import parse_plan
+from planfence.rules import Violation, no_delete, no_replace
 from tests.conftest import load_fixture, make_plan
 
 

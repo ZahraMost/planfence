@@ -17,9 +17,9 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
-from planguard.config import ConfigError, load_config, parse_config
-from planguard.parser import PlanError, load_plan, parse_plan
+from planfence import cli
+from planfence.config import ConfigError, load_config, parse_config
+from planfence.parser import PlanError, load_plan, parse_plan
 from tests.conftest import make_plan
 
 FIX = Path(__file__).resolve().parent / "fixtures"
@@ -31,7 +31,7 @@ def write_cfg(tmp_path, plan_source, state_only, rules='["no-delete"]'):
     lines = [f'plan_source = "{plan_source}"', f"enabled_rules = {rules}"]
     if state_only is not None:
         lines.insert(1, f'state_only_plans = "{state_only}"')
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return p
 

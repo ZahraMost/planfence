@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 CI = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
 
-skip_slow = pytest.mark.skipif(os.environ.get("PLANGUARD_SKIP_SLOW") == "1", reason="PLANGUARD_SKIP_SLOW=1")
+skip_slow = pytest.mark.skipif(os.environ.get("PLANFENCE_SKIP_SLOW") == "1", reason="PLANFENCE_SKIP_SLOW=1")
 
 
 def have(module):

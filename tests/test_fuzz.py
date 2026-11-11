@@ -11,10 +11,10 @@ truncation / garbage), runs `cli.main`, and checks invariants:
   * exit code equals the reference oracle below (so exit 0 only when the plan
     parses AND the oracle finds no violation)
 
-The oracle is deliberately simple and shares no code with planguard: it works on
+The oracle is deliberately simple and shares no code with planfence: it works on
 raw bytes and plain dicts and uses a regex for wildcard matching.
 
-Iterations: PLANGUARD_FUZZ_N (default 20000). Every iteration i is fully
+Iterations: PLANFENCE_FUZZ_N (default 20000). Every iteration i is fully
 determined by `random.Random(i)`; `gen_case(i)` reproduces it.
 """
 
@@ -32,15 +32,15 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
+from planfence import cli
 from tests.conftest import SRC
 
-N = int(os.environ.get("PLANGUARD_FUZZ_N", "20000"))
+N = int(os.environ.get("PLANFENCE_FUZZ_N", "20000"))
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 SECRET = "PLANTED-SECRET-VALUE-7f3a9c"
 
 # ---------------------------------------------------------------------------
-# Configurations (python dict -> TOML text for planguard, same dict for the oracle)
+# Configurations (python dict -> TOML text for planfence, same dict for the oracle)
 # ---------------------------------------------------------------------------
 
 CONFIGS = {
@@ -588,7 +588,7 @@ def test_fuzz_differential(cfg_paths, tmp_path):
 
 def sub(args, stdin_env=None):
     env = dict(os.environ, PYTHONPATH=str(SRC))
-    return subprocess.run([sys.executable, "-m", "planguard", *map(str, args)], capture_output=True, text=True, env=env)
+    return subprocess.run([sys.executable, "-m", "planfence", *map(str, args)], capture_output=True, text=True, env=env)
 
 
 def test_fuzz_sample_through_real_process(cfg_paths, tmp_path):

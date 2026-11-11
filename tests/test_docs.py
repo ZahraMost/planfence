@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REQUIRED = [
     ("contract from a protected place", ["base branch", "CODEOWNERS", "branch protection"]),
     ("apply exactly the plan you checked", ["terraform apply tfplan", "never re-plan"]),
-    ("what planguard cannot see", ["provisioner", "local-exec", "data source"]),
+    ("what planfence cannot see", ["provisioner", "local-exec", "data source"]),
     ("a pass is not an approval", ["not an approval"]),
 ]
 
@@ -17,16 +17,16 @@ REQUIRED = [
 @pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
 def test_ci_safety_guidance_present(name):
     text = (ROOT / name).read_text(encoding="utf-8")
-    assert "Using planguard safely in CI" in text
+    assert "Using planfence safely in CI" in text
     for topic, needles in REQUIRED:
         for needle in needles:
             assert needle in text, f"{name}: missing {needle!r} ({topic})"
 
 
 def test_example_workflow_loads_contract_from_base_branch():
-    text = (ROOT / "examples" / "github-actions" / "planguard-example.yml").read_text(encoding="utf-8")
+    text = (ROOT / "examples" / "github-actions" / "planfence-example.yml").read_text(encoding="utf-8")
     assert "base_ref" in text and "git show" in text
-    assert "--config" in text and "--config planguard.toml" not in text
+    assert "--config" in text and "--config planfence.toml" not in text
 
 
 # ---- OpenTofu / plan_source documentation ------------------------------------
@@ -64,10 +64,10 @@ def test_not_verified_list_no_longer_claims_opentofu_is_unverified(name):
 
 
 def test_examples_mention_plan_source():
-    for rel in ("examples/planguard.toml", "examples/github-actions/planguard-example.yml"):
+    for rel in ("examples/planfence.toml", "examples/github-actions/planfence-example.yml"):
         text = (ROOT / rel).read_text(encoding="utf-8")
         assert "plan_source" in text and "opentofu" in text, rel
-    wf = (ROOT / "examples/github-actions/planguard-example.yml").read_text(encoding="utf-8")
+    wf = (ROOT / "examples/github-actions/planfence-example.yml").read_text(encoding="utf-8")
     assert "-target" in wf and "-exclude" in wf
 
 
@@ -89,11 +89,11 @@ def test_example_workflow_scope_documented(name):
         assert needle in text, f"{name}: missing {needle!r}"
 
 
-# ---- round-2 review: plan modes, what planguard reads, versions, CODEOWNERS ----------------------
+# ---- round-2 review: plan modes, what planfence reads, versions, CODEOWNERS ----------------------
 
 ROUND2_NEEDLES = [
-    # what planguard reads vs what creating the plan does
-    "planguard itself reads only the plan file",
+    # what planfence reads vs what creating the plan does
+    "planfence itself reads only the plan file",
     "may contact providers",
     "run data sources",
     "`external`",
@@ -112,7 +112,7 @@ ROUND2_NEEDLES = [
     "unverified",
     # trust boundary
     "CODEOWNERS",
-    "/planguard.toml",
+    "/planfence.toml",
     "/.github/",
     "/CODEOWNERS",
     "trust boundary",
@@ -137,7 +137,7 @@ def test_codeowners_example_protects_the_trust_boundary():
     lines = [ln.split() for ln in (ROOT / "examples" / "CODEOWNERS").read_text(encoding="utf-8").splitlines()
              if ln.strip() and not ln.strip().startswith("#")]
     protected = {parts[0] for parts in lines}
-    assert {"/planguard.toml", "/.github/", "/CODEOWNERS"} <= protected
+    assert {"/planfence.toml", "/.github/", "/CODEOWNERS"} <= protected
     assert all(len(parts) >= 2 and parts[1].startswith("@") for parts in lines)
 
 
@@ -185,7 +185,7 @@ def test_moves_documented(name):
 @pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
 def test_moved_blocks_no_longer_listed_as_unverified(name):
     text = (ROOT / name).read_text(encoding="utf-8")
-    assert "`moved` blocks (planguard judges only" not in text
+    assert "`moved` blocks (planfence judges only" not in text
     assert "`moved` blocks: not verified" not in text
     assert "ignores `previous_address`" not in text
 
@@ -212,7 +212,7 @@ def test_state_only_plans_documented(name):
 
 
 def test_example_config_recommends_refuse_for_ci_gates():
-    text = (ROOT / "examples" / "planguard.toml").read_text(encoding="utf-8")
+    text = (ROOT / "examples" / "planfence.toml").read_text(encoding="utf-8")
     assert 'state_only_plans = "refuse"' in text and "CI" in text
 
 

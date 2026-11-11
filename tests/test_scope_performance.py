@@ -6,9 +6,9 @@ import time
 
 import pytest
 
-from planguard.config import ConfigError, MAX_ALLOW_PATTERNS, MAX_PATTERN_LENGTH, parse_config
-from planguard.parser import Change
-from planguard.rules import AddressMatcher, glob_match, scope
+from planfence.config import ConfigError, MAX_ALLOW_PATTERNS, MAX_PATTERN_LENGTH, parse_config
+from planfence.parser import Change
+from planfence.rules import AddressMatcher, glob_match, scope
 
 BOUND = 5.0  # seconds; generous, the real figures are milliseconds
 
@@ -111,7 +111,7 @@ def expected_violations(changes, allow):
 def test_prefix_patterns_are_not_evaluated_one_by_one_in_python(monkeypatch):
     calls = []
     real = glob_match
-    monkeypatch.setattr("planguard.rules.glob_match", lambda p, t: calls.append(p) or real(p, t))
+    monkeypatch.setattr("planfence.rules.glob_match", lambda p, t: calls.append(p) or real(p, t))
     changes = make_changes(50)
     allow = ["module.m1*", "exact", "p.*"]  # prefix, exact and prefix-only patterns
     violations = scope(changes, allow)

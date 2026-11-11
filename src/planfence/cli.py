@@ -16,9 +16,9 @@ import json
 import sys
 from typing import NoReturn, TextIO
 
-from planguard.config import ConfigError, load_config
-from planguard.parser import PlanError, load_plan
-from planguard.rules import Violation, check
+from planfence.config import ConfigError, load_config
+from planfence.parser import PlanError, load_plan
+from planfence.rules import Violation, check
 
 EXIT_OK = 0
 EXIT_VIOLATIONS = 1
@@ -89,23 +89,23 @@ def _version() -> str:
     try:
         from importlib.metadata import version
 
-        return version("planguard")
+        return version("planfence")
     except Exception:  # PackageNotFoundError or any broken-metadata problem
-        from planguard import __version__
+        from planfence import __version__
 
         return __version__
 
 
 def _build_parser() -> argparse.ArgumentParser:
     ap = _Parser(
-        prog="planguard",
+        prog="planfence",
         description="Check a Terraform/OpenTofu plan (terraform show -json output) against a contract.",
         allow_abbrev=False,
     )
     ap.add_argument("plan", help="path to the JSON produced by `terraform show -json <planfile>`")
-    ap.add_argument("--config", default="planguard.toml", help="contract file (default: ./planguard.toml)")
+    ap.add_argument("--config", default="planfence.toml", help="contract file (default: ./planfence.toml)")
     ap.add_argument("--format", choices=("text", "json"), default="text", dest="fmt")
-    ap.add_argument("--version", action="version", version=f"planguard {_version()}")
+    ap.add_argument("--version", action="version", version=f"planfence {_version()}")
     return ap
 
 
@@ -120,7 +120,7 @@ def _write(stream: TextIO, text: str) -> bool:
 
 
 def _report_error(fmt: str, message: str) -> int:
-    _write(sys.stderr, f"planguard: error: {_safe(message)}\n")
+    _write(sys.stderr, f"planfence: error: {_safe(message)}\n")
     if fmt == "json":
         _write(sys.stdout, json.dumps({"result": "error", "message": message}) + "\n")
     return EXIT_ERROR
@@ -140,9 +140,9 @@ def _render(fmt: str, violations: list[Violation], checked: int) -> str:
         )
     if violations:
         lines = [_text_line(v) for v in violations]
-        lines.append(f"planguard: FAIL - {len(violations)} violation(s)")
+        lines.append(f"planfence: FAIL - {len(violations)} violation(s)")
     else:
-        lines = [f"planguard: OK - {checked} change(s) checked, all enabled rules passed"]
+        lines = [f"planfence: OK - {checked} change(s) checked, all enabled rules passed"]
     return "\n".join(lines) + "\n"
 
 
@@ -168,6 +168,6 @@ def main(argv: list[str] | None = None) -> int:
 
     # Result is decided; if it cannot be delivered, that is an error (2), never 0 or 1.
     if not _write(sys.stdout, output):
-        _write(sys.stderr, "planguard: error: could not write output\n")
+        _write(sys.stderr, "planfence: error: could not write output\n")
         return EXIT_ERROR
     return EXIT_VIOLATIONS if violations else EXIT_OK

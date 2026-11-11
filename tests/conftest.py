@@ -9,7 +9,7 @@ import pytest
 
 # Source tree used by subprocess tests. scripts/mutation_check.py points this at a
 # mutated temp copy; normally it is the real src/.
-SRC = Path(os.environ.get("PLANGUARD_SRC") or Path(__file__).resolve().parent.parent / "src")
+SRC = Path(os.environ.get("PLANFENCE_SRC") or Path(__file__).resolve().parent.parent / "src")
 
 REAL = Path(__file__).resolve().parent / "fixtures" / "real"
 

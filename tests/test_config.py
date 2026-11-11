@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from planguard.config import Config, ConfigError, load_config, parse_config
+from planfence.config import Config, ConfigError, load_config, parse_config
 
 FULL = {
     "enabled_rules": ["no-delete", "no-replace", "scope", "stateful-protect", "budget"],
@@ -94,7 +94,7 @@ def test_bad_config_rejected(name):
 
 
 def test_load_config_from_file(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text(
         'enabled_rules = ["no-delete", "budget"]\n'
         "[budget]\nmax_changes = 3\n[budget.max_creates_per_type]\naws_instance = 1\n",
@@ -106,7 +106,7 @@ def test_load_config_from_file(tmp_path):
 
 
 def test_load_config_unknown_key_in_file(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text('enabled_rules = ["no-delete"]\nsurprise = 1\n', encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(p)
@@ -114,7 +114,7 @@ def test_load_config_unknown_key_in_file(tmp_path):
 
 @pytest.mark.parametrize("text", ["", "enabled_rules = [", "enabled_rules = ['no-delete']\nenabled_rules = ['scope']"])
 def test_load_config_bad_toml(tmp_path, text):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text(text, encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(p)
@@ -128,7 +128,7 @@ def test_load_config_missing_file_and_directory(tmp_path):
 
 
 def test_load_config_invalid_utf8_and_size_limit(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_bytes(b"\xff\xfe\x00")
     with pytest.raises(ConfigError):
         load_config(p)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from planguard.parser import MAX_STRING_LENGTH, PlanError, parse_plan
+from planfence.parser import MAX_STRING_LENGTH, PlanError, parse_plan
 from tests.conftest import make_plan
 
 FIELDS = ["address", "type", "deposed"]
@@ -55,7 +55,7 @@ def test_huge_string_rejected_without_issue():
 def test_cli_exit_2_and_no_value(capsys, tmp_path):
     import json
 
-    from planguard import cli
+    from planfence import cli
 
     cfg = tmp_path / "c.toml"
     cfg.write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")

@@ -14,10 +14,10 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
-from planguard.config import parse_config
-from planguard.parser import parse_plan
-from planguard.rules import check
+from planfence import cli
+from planfence.config import parse_config
+from planfence.parser import parse_plan
+from planfence.rules import check
 
 MODES = Path(__file__).resolve().parent / "fixtures" / "modes"
 TOOLS = {"terraform": "terraform", "opentofu": "opentofu"}  # directory -> plan_source
@@ -75,7 +75,7 @@ def test_replace_flag_trips_no_replace(tool):
 
 
 def test_replace_flag_is_invisible_when_no_replace_is_not_enabled(tool):
-    """planguard cannot know about the flag: without no-replace (and with a permissive contract) it passes."""
+    """planfence cannot know about the flag: without no-replace (and with a permissive contract) it passes."""
     changes = plan(tool, "replace_flag").changes
     assert check(changes, contract(tool, ("no-delete",))) == []  # a replacement is not a plain delete
     assert [v.rule for v in check(changes, contract(tool, ("no-replace", "no-delete")))] == ["no-replace"]
@@ -100,7 +100,7 @@ def test_refresh_only_unchanged_config_has_no_resource_changes_key(tool):
 
 
 def test_refresh_only_passes_even_the_strictest_contract(tool, tmp_path, capsys):
-    cfg = tmp_path / "planguard.toml"
+    cfg = tmp_path / "planfence.toml"
     cfg.write_text(strictest_toml(tool), encoding="utf-8")
     code = cli.main([str(MODES / tool / "refresh_only.json"), "--config", str(cfg)])
     assert code == 0 and "OK - 0 change(s) checked" in capsys.readouterr().out
@@ -118,7 +118,7 @@ def test_real_output_drift_is_only_in_output_changes(tool):
 
 
 def test_terraform_marks_the_output_drift_plan_applyable(tool):
-    """Applying this plan would change the state (the output), yet there is nothing for planguard to judge."""
+    """Applying this plan would change the state (the output), yet there is nothing for planfence to judge."""
     doc = raw(tool, "refresh_only_output_drift")
     if tool == "terraform":
         assert doc["applyable"] is True and doc["complete"] is True
@@ -128,7 +128,7 @@ def test_terraform_marks_the_output_drift_plan_applyable(tool):
 
 def test_output_drift_plan_exits_0_with_the_strictest_contract(tool, tmp_path, capsys):
     """Documented limitation: state changes found by -refresh-only (output_changes) are not checked."""
-    cfg = tmp_path / "planguard.toml"
+    cfg = tmp_path / "planfence.toml"
     cfg.write_text(strictest_toml(tool), encoding="utf-8")
     code = cli.main([str(MODES / tool / "refresh_only_output_drift.json"), "--config", str(cfg)])
     assert code == 0 and "OK - 0 change(s) checked" in capsys.readouterr().out

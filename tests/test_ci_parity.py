@@ -1,4 +1,4 @@
-"""CI must run the tests the way a fresh checkout does: no editable install of planguard."""
+"""CI must run the tests the way a fresh checkout does: no editable install of planfence."""
 
 import re
 from pathlib import Path
@@ -31,14 +31,14 @@ def test_pytest_job_installs_exactly_pytest_and_build():
     assert options == []
 
 
-def test_pytest_job_never_installs_planguard_itself():
+def test_pytest_job_never_installs_planfence_itself():
     block = "\n".join(ln for ln in job_block("pytest").splitlines() if not ln.strip().startswith("#"))
-    for bad in ("planguard", "pip install .", "pip install -e", "--editable", "pip install src", "setup.py", "PYTHONPATH"):
+    for bad in ("planfence", "pip install .", "pip install -e", "--editable", "pip install src", "setup.py", "PYTHONPATH"):
         assert bad not in block.replace("pytest:", ""), bad
     assert "python -m pytest" in block
 
 
-def test_lint_job_does_not_install_planguard_either():
+def test_lint_job_does_not_install_planfence_either():
     requirements, _ = installed_requirements(pip_install_lines(job_block("lint"))[0])
     assert all(r.split("==")[0] in ("ruff", "mypy") for r in requirements)
 
@@ -58,7 +58,7 @@ def test_pytest_job_runs_on_python_3_11_3_12_and_3_13_so_packaging_is_tested_on_
 
 
 def test_nothing_in_ci_disables_the_packaging_or_lint_tests():
-    assert "PLANGUARD_SKIP_SLOW" not in CI
+    assert "PLANFENCE_SKIP_SLOW" not in CI
     assert "--deselect" not in CI and "-k " not in CI and "--ignore" not in CI
 
 

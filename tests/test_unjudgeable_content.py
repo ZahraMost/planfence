@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
-from planguard.parser import PlanError, load_plan, parse_plan
+from planfence import cli
+from planfence.parser import PlanError, load_plan, parse_plan
 from tests.conftest import fixture_path, load_fixture, make_plan
 
 HANDMADE = Path(__file__).resolve().parent / "fixtures" / "handmade"
@@ -140,7 +140,7 @@ CFG = 'enabled_rules = ["no-delete"]\n'
     ids=lambda p: p.stem,
 )
 def test_cli_exit_2(capsys, tmp_path, path, fmt):
-    cfg = tmp_path / "planguard.toml"
+    cfg = tmp_path / "planfence.toml"
     cfg.write_text(CFG, encoding="utf-8")
     code = cli.main([str(path), "--config", str(cfg), "--format", fmt])
     out = capsys.readouterr()

@@ -1,4 +1,4 @@
-"""planguard.toml loading. Strict: any unknown key, wrong type or inconsistency
+"""planfence.toml loading. Strict: any unknown key, wrong type or inconsistency
 is a ConfigError (CLI exit code 2).
 
 Format:
@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from planguard.parser import PLAN_SOURCES, STATE_ONLY_MODES
+from planfence.parser import PLAN_SOURCES, STATE_ONLY_MODES
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ALLOW_PATTERNS = 500

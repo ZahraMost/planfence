@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
+from planfence import cli
 from tests.conftest import SRC, fixture_path, make_plan
 
 
@@ -25,7 +25,7 @@ terraform_data = 3
 
 @pytest.fixture
 def cfg(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text(FULL_TOML, encoding="utf-8")
     return p
 
@@ -73,14 +73,14 @@ def test_text_output_for_violations(capsys, cfg):
     assert lines == [
         "[error] no-replace terraform_data.example (terraform_data) delete,create",
         "[critical] stateful-protect terraform_data.example (terraform_data) delete,create",
-        "planguard: FAIL - 2 violation(s)",
+        "planfence: FAIL - 2 violation(s)",
     ]
 
 
 def test_text_pass_line(capsys, cfg):
     code, out, _ = run(capsys, fixture_path("update"), "--config", cfg)
     assert code == 0
-    assert out.strip() == "planguard: OK - 1 change(s) checked, all enabled rules passed"
+    assert out.strip() == "planfence: OK - 1 change(s) checked, all enabled rules passed"
 
 
 def test_budget_violations_show_numbers_in_text(capsys, tmp_path):
@@ -94,7 +94,7 @@ def test_budget_violations_show_numbers_in_text(capsys, tmp_path):
     assert out.splitlines() == [
         "[error] budget total changes 6 > max_changes 5",
         "[error] budget creates of aws_instance 3 > limit 2",
-        "planguard: FAIL - 2 violation(s)",
+        "planfence: FAIL - 2 violation(s)",
     ]
 
 
@@ -196,11 +196,11 @@ def test_missing_config_file_exit_2(capsys, tmp_path):
     assert (code, out) == (2, "")
 
 
-def test_default_config_is_planguard_toml_in_cwd(capsys, tmp_path, monkeypatch):
+def test_default_config_is_planfence_toml_in_cwd(capsys, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     code, out, _ = run(capsys, fixture_path("update"))
-    assert (code, out) == (2, "")  # no planguard.toml here: fail closed, do not pass silently
-    (tmp_path / "planguard.toml").write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")
+    assert (code, out) == (2, "")  # no planfence.toml here: fail closed, do not pass silently
+    (tmp_path / "planfence.toml").write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")
     code, out, _ = run(capsys, fixture_path("update"))
     assert code == 0
 
@@ -292,12 +292,12 @@ def test_deposed_shown(capsys, cfg, tmp_path):
     assert "deposed=0abc" in out
 
 
-# ---- real process: python -m planguard --------------------------------------
+# ---- real process: python -m planfence --------------------------------------
 
 def sub(*args, cwd=None):
     env = dict(os.environ, PYTHONPATH=str(SRC))
     return subprocess.run(
-        [sys.executable, "-m", "planguard", *map(str, args)], capture_output=True, text=True, env=env, cwd=cwd
+        [sys.executable, "-m", "planfence", *map(str, args)], capture_output=True, text=True, env=env, cwd=cwd
     )
 
 

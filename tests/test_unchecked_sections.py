@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from planguard import cli
-from planguard.parser import parse_plan
+from planfence import cli
+from planfence.parser import parse_plan
 from tests.conftest import make_plan
 
 ALL_RULES = """\
@@ -32,7 +32,7 @@ RESOURCE_DRIFT = [
 
 @pytest.fixture
 def cfg(tmp_path):
-    p = tmp_path / "planguard.toml"
+    p = tmp_path / "planfence.toml"
     p.write_text(ALL_RULES, encoding="utf-8")
     return p
 

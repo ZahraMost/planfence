@@ -1,4 +1,4 @@
-"""Behavioural and structural tests of examples/github-actions/planguard-example.yml.
+"""Behavioural and structural tests of examples/github-actions/planfence-example.yml.
 
 The workflow is read as plain text (no YAML dependency). Its "Load contract from the base
 branch" step is extracted and actually executed with bash against a throwaway git setup.
@@ -12,11 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from planguard import cli
+from planfence import cli
 from tests.conftest import fixture_path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXAMPLE = ROOT / "examples" / "github-actions" / "planguard-example.yml"
+EXAMPLE = ROOT / "examples" / "github-actions" / "planfence-example.yml"
 CI = ROOT / ".github" / "workflows" / "ci.yml"
 STEP_NAME = "Load contract from the base branch"
 
@@ -78,13 +78,13 @@ def pr_checkout(tmp_path):
     seed = tmp_path / "seed"
     seed.mkdir()
     git(seed, "init", "-b", "main")
-    (seed / "planguard.toml").write_text(STRICT, encoding="utf-8")
-    git(seed, "add", "planguard.toml")
+    (seed / "planfence.toml").write_text(STRICT, encoding="utf-8")
+    git(seed, "add", "planfence.toml")
     git(seed, "commit", "-m", "strict contract")
     git(seed, "remote", "add", "origin", url)
     git(seed, "push", "origin", "main")
     git(seed, "checkout", "-b", "pr")
-    (seed / "planguard.toml").write_text(WEAK, encoding="utf-8")
+    (seed / "planfence.toml").write_text(WEAK, encoding="utf-8")
     git(seed, "commit", "-am", "weaken the contract")
     git(seed, "push", "origin", "pr")
 
@@ -108,7 +108,7 @@ def run_step(script, checkout, runner, base_ref="main"):
     )
 
 
-def planguard_exit(contract: Path) -> int:
+def planfence_exit(contract: Path) -> int:
     return cli.main([str(fixture_path("delete")), "--config", str(contract)])
 
 
@@ -117,25 +117,25 @@ def planguard_exit(contract: Path) -> int:
 def test_extraction_finds_the_expected_commands():
     script = step_script(EXAMPLE.read_text(encoding="utf-8"))
     assert 'git fetch --no-tags --depth=1 origin "$BASE_REF"' in script
-    assert 'git show "origin/$BASE_REF:planguard.toml"' in script and "$RUNNER_TEMP/planguard.toml" in script
+    assert 'git show "origin/$BASE_REF:planfence.toml"' in script and "$RUNNER_TEMP/planfence.toml" in script
 
 
 @needs_tools
 def test_step_produces_the_base_branch_contract_not_the_pr_one(pr_checkout, capsys):
     checkout, runner = pr_checkout
-    assert (checkout / "planguard.toml").read_text(encoding="utf-8") == WEAK  # the PR checkout is weakened
+    assert (checkout / "planfence.toml").read_text(encoding="utf-8") == WEAK  # the PR checkout is weakened
     script = step_script(EXAMPLE.read_text(encoding="utf-8"))
     proc = run_step(script, checkout, runner)
     assert proc.returncode == 0, proc.stderr
-    produced = runner / "planguard.toml"
+    produced = runner / "planfence.toml"
     assert produced.read_text(encoding="utf-8") == STRICT
-    assert (checkout / "planguard.toml").read_text(encoding="utf-8") == WEAK  # checkout left untouched
+    assert (checkout / "planfence.toml").read_text(encoding="utf-8") == WEAK  # checkout left untouched
 
     # the contract the step produced catches the delete ...
-    assert planguard_exit(produced) == 1
+    assert planfence_exit(produced) == 1
     capsys.readouterr()
     # ... while the PR's own weakened contract would let the same plan pass (the threat)
-    assert planguard_exit(checkout / "planguard.toml") == 0
+    assert planfence_exit(checkout / "planfence.toml") == 0
 
 
 @needs_tools
@@ -144,7 +144,7 @@ def test_step_fails_closed_when_the_base_ref_cannot_be_fetched(pr_checkout):
     script = step_script(EXAMPLE.read_text(encoding="utf-8"))
     proc = run_step(script, checkout, runner, base_ref="no-such-branch")
     assert proc.returncode != 0
-    assert not (runner / "planguard.toml").exists() or (runner / "planguard.toml").read_text() == ""
+    assert not (runner / "planfence.toml").exists() or (runner / "planfence.toml").read_text() == ""
 
 
 @needs_tools
@@ -152,12 +152,12 @@ def test_negative_control_reading_the_contract_from_the_checkout_is_the_threat(p
     """If the step took the contract from the PR checkout, the weakened version would win."""
     checkout, runner = pr_checkout
     script = step_script(EXAMPLE.read_text(encoding="utf-8"))
-    bad = script.replace('git show "origin/$BASE_REF:planguard.toml"', "cat planguard.toml")
+    bad = script.replace('git show "origin/$BASE_REF:planfence.toml"', "cat planfence.toml")
     assert bad != script
     assert run_step(bad, checkout, runner).returncode == 0
-    produced = runner / "planguard.toml"
+    produced = runner / "planfence.toml"
     assert produced.read_text(encoding="utf-8") == WEAK
-    assert planguard_exit(produced) == 0
+    assert planfence_exit(produced) == 0
     capsys.readouterr()
 
 
@@ -185,10 +185,10 @@ def workflow_problems(text):
     show = _find(code, r"\b(?:terraform|tofu) show -json (\S+)")
     checksum = _find(code, r"\bsha256sum (\S+) >")
     load = _find(code, r'git show "origin/')
-    check = _find(code, r"\bplanguard \S+ --config")
+    check = _find(code, r"\bplanfence \S+ --config")
     apply_comment = _find(comments, r"sha256sum -c (\S+) && (?:terraform|tofu) apply (\S+)")
     for name, found in (("plan -out", plan), ("show -json", show), ("sha256sum", checksum),
-                        ("contract load", load), ("planguard check", check), ("commented apply", apply_comment)):
+                        ("contract load", load), ("planfence check", check), ("commented apply", apply_comment)):
         if len(found) != 1:
             problems.append(f"expected exactly one {name} line, found {len(found)}")
     if problems:
@@ -248,9 +248,9 @@ NEGATIVE_CONTROLS = {
         "      - name: Remove plan files",
         "      - name: Apply\n        run: terraform apply tfplan\n      - name: Remove plan files"),
     "contract loaded after the check": _mutate(
-        'run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"',
-        'run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"\n'
-        '      - name: Late load\n        run: git show "origin/main:planguard.toml" > x'),
+        'run: planfence plan.json --config "$RUNNER_TEMP/planfence.toml"',
+        'run: planfence plan.json --config "$RUNNER_TEMP/planfence.toml"\n'
+        '      - name: Late load\n        run: git show "origin/main:planfence.toml" > x'),
     "no timeout": _mutate("    timeout-minutes: 5\n", ""),
     "no checksum step": _mutate("          sha256sum tfplan > tfplan.sha256\n", ""),
 }

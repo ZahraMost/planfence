@@ -1,9 +1,9 @@
-"""Process entry point: `python -m planguard` and the `planguard` console script.
+"""Process entry point: `python -m planfence` and the `planfence` console script.
 
 Everything that can go wrong outside cli.main() ends here with exit code 2
 (import failures, interrupts, unexpected SystemExit, a failing final flush of
 stdout). Only the standard library is imported at module level so that a broken
-planguard module cannot prevent this guard from running.
+planfence module cannot prevent this guard from running.
 """
 
 import os
@@ -34,22 +34,22 @@ def _silence_stdout() -> None:
 
 
 def run(argv: list[str] | None = None) -> int:
-    """Run planguard and return an exit code that is always 0, 1 or 2."""
+    """Run planfence and return an exit code that is always 0, 1 or 2."""
     try:
-        from planguard import cli  # imported here so import-time failures are caught
+        from planfence import cli  # imported here so import-time failures are caught
 
         code = cli.main(argv)
     except BaseException as exc:  # incl. SystemExit, KeyboardInterrupt, ImportError
-        _note(f"planguard: error: unexpected {type(exc).__name__}")
+        _note(f"planfence: error: unexpected {type(exc).__name__}")
         code = EXIT_ERROR
     if type(code) is not int or code not in (0, 1, 2):
-        _note("planguard: error: invalid exit status")
+        _note("planfence: error: invalid exit status")
         code = EXIT_ERROR
     try:
         sys.stdout.flush()
     except BaseException:
         _silence_stdout()
-        _note("planguard: error: could not write output")
+        _note("planfence: error: could not write output")
         code = EXIT_ERROR
     return code
 

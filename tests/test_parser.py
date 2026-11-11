@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from planguard.parser import PlanError, load_plan, parse_plan
+from planfence.parser import PlanError, load_plan, parse_plan
 from tests.conftest import fixture_path, load_fixture, make_plan
 
 REAL_EXPECTED = {

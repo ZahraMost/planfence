@@ -17,6 +17,8 @@ First release candidate. Not tagged; the package version is still `0.0.1`.
 - Test suite with real Terraform 1.17.2 and OpenTofu 1.13.9 fixtures, deterministic fuzzing against an
   independent oracle, mutation testing, example workflow tests, packaging test.
 - Example config, example GitHub Actions workflow, CODEOWNERS example, CI workflow.
+- Dev-only quality gates: ruff and mypy (strict) on `src/`, run by a separate CI job; dependabot for the
+  GitHub Actions in use.
 
 ### Security
 - planguard is fail-closed: exit 0 only if the plan was fully understood and every enabled rule passed; every other

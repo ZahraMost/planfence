@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest", "build"]
+dev = ["pytest", "build", "ruff", "mypy"]
 
 [project.scripts]
 planguard = "planguard.__main__:run"
@@ -24,3 +24,24 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+# ---- dev-only quality gates (not runtime dependencies); CI runs both on src/ ----
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src"]
+# the gates cover the shipped package only; tests/ and scripts/ are not linted (yet)
+extend-exclude = ["tests", "scripts", "examples"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "RUF", "PIE", "PERF", "ARG", "PL"]
+ignore = [
+    "PLR2004",  # magic values: exit codes and limits are named where it matters
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915",  # complexity counters: parse_plan is deliberately linear
+    "PLC0415",  # imports inside functions are intentional (lazy imports in __main__.run and cli._version)
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src"]

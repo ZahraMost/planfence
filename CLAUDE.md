@@ -282,6 +282,10 @@ or any network use other than `pip install` and Terraform's own init.
 ## Workflow
 - Tests first. Small commits (one rule or one step per commit).
 - Run the full test suite before every commit.
+- Quality gates (dev tools only, configured in pyproject.toml, run by a separate CI job with
+  exact pinned versions): `.venv/bin/ruff check src` and `.venv/bin/mypy` (strict, src only).
+  Keep both clean; fix reports without changing behaviour (if a tool wants a behaviour change,
+  stop and list it). tests/test_quality_gates.py runs them as part of the suite.
 - tests/test_fuzz.py: deterministic differential fuzzing of cli.main against an
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N

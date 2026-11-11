@@ -24,6 +24,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from planguard.parser import PLAN_SOURCES, STATE_ONLY_MODES
 
@@ -53,7 +54,7 @@ class Config:
     state_only_plans: str = "allow"
 
 
-def _table(value: object, name: str, allowed: set[str]) -> dict:
+def _table(value: object, name: str, allowed: set[str]) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ConfigError(f"[{name}] must be a table")
     unknown = sorted(set(value) - allowed)

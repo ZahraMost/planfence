@@ -159,3 +159,103 @@ def test_negative_control_reading_the_contract_from_the_checkout_is_the_threat(p
     assert produced.read_text(encoding="utf-8") == WEAK
     assert planguard_exit(produced) == 0
     capsys.readouterr()
+
+
+# ---- structure: plan identity, order, no re-plan, timeouts ------------------------------------
+
+def code_lines(text):
+    """(line number, stripped text) of every non-comment, non-blank line."""
+    return [(i, ln.strip()) for i, ln in enumerate(text.splitlines(), 1) if ln.strip() and not ln.strip().startswith("#")]
+
+
+def comment_lines(text):
+    return [(i, ln.strip().lstrip("#").strip()) for i, ln in enumerate(text.splitlines(), 1) if ln.strip().startswith("#")]
+
+
+def _find(lines, pattern):
+    rx = re.compile(pattern)
+    return [(i, m) for i, ln in lines if (m := rx.search(ln))]
+
+
+def workflow_problems(text):
+    """Everything wrong with the example workflow's plan identity / ordering (empty list = fine)."""
+    problems = []
+    code, comments = code_lines(text), comment_lines(text)
+    plan = _find(code, r"\b(?:terraform|tofu) plan\b.*-out=(\S+)")
+    show = _find(code, r"\b(?:terraform|tofu) show -json (\S+)")
+    checksum = _find(code, r"\bsha256sum (\S+) >")
+    load = _find(code, r'git show "origin/')
+    check = _find(code, r"\bplanguard \S+ --config")
+    apply_comment = _find(comments, r"sha256sum -c (\S+) && (?:terraform|tofu) apply (\S+)")
+    for name, found in (("plan -out", plan), ("show -json", show), ("sha256sum", checksum),
+                        ("contract load", load), ("planguard check", check), ("commented apply", apply_comment)):
+        if len(found) != 1:
+            problems.append(f"expected exactly one {name} line, found {len(found)}")
+    if problems:
+        return problems
+
+    names = {plan[0][1].group(1), show[0][1].group(1), checksum[0][1].group(1),
+             apply_comment[0][1].group(2)}
+    if names != {"tfplan"}:
+        problems.append(f"plan file names differ or are not 'tfplan': {sorted(names)}")
+    if apply_comment[0][1].group(1) != "tfplan.sha256":
+        problems.append("apply line does not verify tfplan.sha256")
+    order = [plan[0][0], show[0][0], checksum[0][0], load[0][0], check[0][0]]
+    if order != sorted(order):
+        problems.append(f"wrong order (plan, show, checksum, contract load, check): lines {order}")
+    check_line = check[0][0]
+    if [i for i, _ in _find(code, r"\b(?:terraform|tofu) plan\b") if i != plan[0][0]]:
+        problems.append("a second plan command exists")
+    if [i for i, _ in _find(code, r"\b(?:terraform|tofu) plan\b") if i > check_line]:
+        problems.append("a plan command runs after the check")
+    if _find(code, r"\b(?:terraform|tofu) (?:apply|refresh|import|destroy)\b"):
+        problems.append("the example must only CHECK, not change anything")
+    stray = {t for t in re.findall(r"tfplan[\w.\-]*", text)} - {"tfplan", "tfplan.sha256"}
+    if stray:
+        problems.append(f"unexpected plan file names: {sorted(stray)}")
+    if text.count("runs-on:") != text.count("timeout-minutes:") or "timeout-minutes:" not in text:
+        problems.append("every job needs timeout-minutes")
+    return problems
+
+
+def test_example_workflow_structure_is_sound():
+    assert workflow_problems(EXAMPLE.read_text(encoding="utf-8")) == []
+
+
+def test_both_workflow_files_set_timeout_minutes_on_every_job():
+    for path in (EXAMPLE, CI):
+        text = path.read_text(encoding="utf-8")
+        assert "timeout-minutes:" in text, path
+        assert text.count("runs-on:") == text.count("timeout-minutes:"), path
+
+
+def _mutate(old, new, count=1):
+    text = EXAMPLE.read_text(encoding="utf-8")
+    assert old in text, old
+    return text.replace(old, new, count)
+
+
+NEGATIVE_CONTROLS = {
+    "different plan file in -out": _mutate("-out=tfplan", "-out=other.plan"),
+    "different file in show": _mutate("show -json tfplan >", "show -json other.plan >"),
+    "checksum of another file": _mutate("sha256sum tfplan >", "sha256sum plan.json >"),
+    "apply line uses another file": _mutate("&& terraform apply tfplan", "&& terraform apply other.plan"),
+    "apply line without verification": _mutate("sha256sum -c tfplan.sha256 && ", ""),
+    "second plan after the check": _mutate(
+        "      - name: Remove plan files",
+        "      - name: Re-plan\n        run: terraform plan -input=false -out=tfplan\n      - name: Remove plan files"),
+    "real apply step": _mutate(
+        "      - name: Remove plan files",
+        "      - name: Apply\n        run: terraform apply tfplan\n      - name: Remove plan files"),
+    "contract loaded after the check": _mutate(
+        'run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"',
+        'run: planguard plan.json --config "$RUNNER_TEMP/planguard.toml"\n'
+        '      - name: Late load\n        run: git show "origin/main:planguard.toml" > x'),
+    "no timeout": _mutate("    timeout-minutes: 5\n", ""),
+    "no checksum step": _mutate("          sha256sum tfplan > tfplan.sha256\n", ""),
+}
+
+
+@pytest.mark.parametrize("name", sorted(NEGATIVE_CONTROLS))
+def test_structure_check_detects_broken_workflows(name):
+    assert workflow_problems(NEGATIVE_CONTROLS[name]), f"not detected: {name}"

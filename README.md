@@ -236,6 +236,15 @@ keep that meaningful.
 
    The binary plan and `plan.json` can contain secrets: do not publish them as artifacts.
 
+   The example workflow only CHECKS: it creates the plan, converts it, loads the contract and
+   runs planguard; it never applies anything (a test enforces this, and that the same `tfplan`
+   file is used throughout, in the order plan, show, checksum, contract, check, with no second
+   plan). If you add an apply step, it must use exactly that file, **ideally in the same job**
+   so the binary plan never leaves the runner, and the apply should be gated by a
+   **protected environment** with **required reviewers**. The checksum only detects accidental change inside
+   the trusted job: anyone who can edit the job can also edit the checksum step. Moving the
+   binary plan to another job means uploading an artifact, and that artifact can contain secrets.
+
 3. **Know what planguard cannot see.** It reads `resource_changes` and nothing else. It does
    not see provisioners (for example `local-exec` or `remote-exec` commands), data source side
    effects (the `external` data source runs a program during `terraform plan`, before planguard

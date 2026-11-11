@@ -165,6 +165,13 @@ aws_instance = 2
 - Apply exactly the plan file you checked: `terraform apply tfplan` with the same
   binary plan that `terraform show -json` converted; never re-plan between check and
   apply (record/verify a sha256 of tfplan). Plan files can contain secrets: no artifacts.
+- The example workflow only CHECKS (tests/test_workflow_contract.py enforces: same `tfplan`
+  file in plan/show/checksum/commented apply, order plan -> show -> checksum -> contract
+  load -> check, no second plan, no apply, timeout-minutes on every job; and executes the
+  contract step against a real git origin). An apply step must use the same file, ideally in
+  the same job, gated by a protected environment with required reviewers. The checksum only
+  detects accidental change inside the trusted job. Moving the binary plan between jobs means
+  uploading an artifact, and it can contain secrets.
 - planguard does not see provisioners (local-exec, remote-exec), data source side
   effects (e.g. the `external` data source runs at plan time), or what a create actually
   does; it never judges attribute values.

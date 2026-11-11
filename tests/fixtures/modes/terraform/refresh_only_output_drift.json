@@ -1,0 +1,155 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.17.2",
+  "planned_values": {
+    "outputs": {
+      "greeting": {
+        "sensitive": false,
+        "type": "string",
+        "value": "changed"
+      }
+    },
+    "root_module": {}
+  },
+  "output_changes": {
+    "greeting": {
+      "actions": [
+        "update"
+      ],
+      "before": "hello",
+      "after": "changed",
+      "after_unknown": false,
+      "before_sensitive": false,
+      "after_sensitive": false
+    }
+  },
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.17.2",
+    "values": {
+      "outputs": {
+        "greeting": {
+          "sensitive": false,
+          "value": "changed",
+          "type": "string"
+        }
+      },
+      "root_module": {
+        "resources": [
+          {
+            "address": "data.terraform_remote_state.src",
+            "mode": "data",
+            "type": "terraform_remote_state",
+            "name": "src",
+            "provider_name": "terraform.io/builtin/terraform",
+            "schema_version": 0,
+            "values": {
+              "backend": "local",
+              "config": {
+                "path": "./producer/terraform.tfstate"
+              },
+              "defaults": null,
+              "outputs": {
+                "greeting": "changed"
+              },
+              "workspace": null
+            },
+            "sensitive_values": {
+              "config": {},
+              "outputs": {}
+            }
+          },
+          {
+            "address": "terraform_data.example",
+            "mode": "managed",
+            "type": "terraform_data",
+            "name": "example",
+            "provider_name": "terraform.io/builtin/terraform",
+            "schema_version": 0,
+            "values": {
+              "id": "8faf4e47-3a63-ac0f-74f4-7ccec434a4f5",
+              "input": "hello",
+              "output": "hello",
+              "store": null,
+              "triggers_replace": null
+            },
+            "sensitive_values": {},
+            "depends_on": [
+              "data.terraform_remote_state.src"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "configuration": {
+    "provider_config": {
+      "terraform": {
+        "name": "terraform",
+        "full_name": "terraform.io/builtin/terraform"
+      }
+    },
+    "root_module": {
+      "outputs": {
+        "greeting": {
+          "expression": {
+            "references": [
+              "data.terraform_remote_state.src.outputs.greeting",
+              "data.terraform_remote_state.src.outputs",
+              "data.terraform_remote_state.src"
+            ]
+          }
+        }
+      },
+      "resources": [
+        {
+          "address": "terraform_data.example",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "example",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "references": [
+                "data.terraform_remote_state.src.outputs.greeting",
+                "data.terraform_remote_state.src.outputs",
+                "data.terraform_remote_state.src"
+              ]
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "data.terraform_remote_state.src",
+          "mode": "data",
+          "type": "terraform_remote_state",
+          "name": "src",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "backend": {
+              "constant_value": "local"
+            },
+            "config": {
+              "references": [
+                "path.module"
+              ]
+            }
+          },
+          "schema_version": 0
+        }
+      ]
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "data.terraform_remote_state.src",
+      "attribute": [
+        "outputs"
+      ]
+    }
+  ],
+  "timestamp": "2026-11-11T20:00:24Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

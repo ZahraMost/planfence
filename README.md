@@ -160,6 +160,26 @@ is no reliable signal, so planguard cannot tell and will judge only the resource
 the plan. A trusted pipeline must therefore run `tofu plan` itself, **without `-target` or
 `-exclude`**, and apply exactly that plan. planguard cannot enforce this.
 
+## Plan modes and flags
+
+planguard sees only the finished plan JSON, not the command line that produced it.
+
+- **`-target`.** Terraform marks such a plan `complete: false`, and planguard refuses it (exit 2, in
+  both `plan_source` modes whenever `complete` is present). OpenTofu gives no signal, so its targeted
+  plans cannot be recognised; see the [OpenTofu](#opentofu) section and run `tofu plan` without
+  `-target` / `-exclude`.
+- **`-refresh-only`.** Verified with real Terraform 1.17.2 and OpenTofu 1.13.9
+  ([tests/fixtures/README.md](tests/fixtures/README.md)): the plan has **no `resource_changes` key**, so
+  planguard reports "0 changes" and exits 0, even with the strictest contract. That includes a refresh
+  that would change the state: when a data source's remote state changed, the only trace is
+  `output_changes` (Terraform also reports `applyable: true`), which planguard does not check. Do not
+  treat a pass on a refresh-only plan as "nothing will change"; applying it updates the state.
+  Drift of a managed resource (`resource_drift`) could not be produced offline and is not verified.
+- **`-replace=ADDR`.** The resource appears as `["delete","create"]` with
+  `action_reason: replace_by_request` (and no `replace_paths`), indistinguishable by `actions` from a
+  config-driven replacement. planguard cannot know about the flag, so keep `no-replace` enabled if
+  replacements are not allowed. `no-delete` does not fire on a replacement.
+
 ## What planguard does NOT claim
 
 planguard is a narrow guardrail, not a safety guarantee. It does **not** check:
@@ -167,7 +187,10 @@ planguard is a narrow guardrail, not a safety guarantee. It does **not** check:
 - **security**: it does not know whether a change opens a port, widens a policy, or leaks data;
 - **cost**: it does not estimate or limit spend (the budget counts changes, not money);
 - **configuration correctness**: a plan can stay inside the contract and still be wrong;
-- **live infrastructure**: it only reads the plan file, never your cloud, state, or provider;
+- **live infrastructure**: planguard itself reads only the plan file (and its config) and never contacts
+  your cloud, state or providers. Creating the plan is different: `terraform plan` / `tofu plan`
+  may contact providers, read and refresh state, and run data sources (for example `external`
+  runs a program), all before planguard starts;
 - **`output_changes`** or **`resource_drift`** in the plan JSON (v0.1 inspects `resource_changes` only).
   Example: a plan whose only changes are a deleted output (`output_changes`) or an out-of-band
   deleted database found during refresh (`resource_drift`), with an empty `resource_changes`,
@@ -219,6 +242,19 @@ keep that meaningful.
    [examples/github-actions/planguard-example.yml](examples/github-actions/planguard-example.yml),
    which reads the contract with `git show origin/<base>:planguard.toml`.
 
+   The workflow file and the planguard version are part of the trust boundary: whoever can change
+   them can change what is checked. A CODEOWNERS file that covers all of them (see
+   [examples/CODEOWNERS](examples/CODEOWNERS)), together with branch protection that requires
+   code-owner review, protects the boundary:
+
+   ```
+   /planguard.toml   @YOUR-ORG/infra-owners
+   /.github/         @YOUR-ORG/infra-owners
+   /CODEOWNERS       @YOUR-ORG/infra-owners
+   ```
+
+   The last line matters: if the PR author can edit CODEOWNERS itself, they can remove the protection.
+
 2. **Apply exactly the plan file you checked.** Run `terraform apply tfplan` with the same
    binary plan file that `terraform show -json` converted, and **never re-plan between check and
    apply**: a fresh plan is a different plan that planguard has not seen. Terraform refuses a
@@ -254,6 +290,12 @@ keep that meaningful.
 4. **A pass is not an approval.** Exit 0 means "this plan, as written, stays inside the
    contract", nothing more. It is a cheap, repeatable filter that should sit *in front of* human
    review, not replace it.
+
+5. **Pin what produces the plan.** planguard does not check `terraform_version`, provider versions
+   or provider identities, and unknown properties in the JSON are ignored. Pin the Terraform/OpenTofu
+   version and the providers in CI (commit the `.terraform.lock.hcl` lock file, set `required_version`
+   and `required_providers`), and treat plans produced by any other version or provider set as
+   unverified: planguard was only verified with the versions listed under "Verified against".
 
 ## CI
 

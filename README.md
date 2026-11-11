@@ -94,6 +94,10 @@ aws_instance = 2
 - **Address patterns** are not fnmatch: only `*` (any characters, including dots and quotes) and
   `?` (one character) are wildcards. `[`, `]` and everything else are literal, matching is
   case-sensitive, so `aws_instance.web[0]` and `aws_instance.web["blue"]` mean exactly that.
+- **Warning: a lone `*` in `scope.allow` allows everything** (every address matches it), which makes
+  the `scope` rule meaningless. Likewise `module.*`-style prefixes allow everything under that
+  prefix. Use the narrowest patterns you can, and review any `*` in the allowlist like a firewall
+  rule that says "allow all".
 - **Limits:** at most 500 `scope.allow` patterns, each at most 512 characters (more is exit 2).
   Patterns without wildcards and patterns of the form `prefix*` are matched with fast paths
   (same semantics); other wildcard patterns use a linear-scan matcher.

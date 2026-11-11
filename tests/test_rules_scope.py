@@ -151,3 +151,19 @@ def test_stateful_protect_only_flags_listed_types_in_mixed_plan():
     )
     vs = stateful_protect(plan.changes, ["aws_db_instance"])
     assert [(v.address, v.severity) for v in vs] == [("aws_db_instance.db", "critical")]
+
+
+# ---- documented footgun: a lone "*" allows everything -------------------------
+
+def test_lone_star_allows_everything_and_makes_scope_meaningless():
+    """README warns about this; the behaviour is intentional and must stay documented."""
+    for name in ("create", "delete", "replace", "forget", "for_each", "module"):
+        assert scope(changes(name), ["*"]) == []
+    assert scope(changes("delete"), ["unrelated.*", "*"]) == []
+
+
+def test_readme_warns_about_lone_star():
+    from pathlib import Path
+
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    assert "lone `*`" in readme and "meaningless" in readme

@@ -219,3 +219,12 @@ def test_example_config_recommends_refuse_for_ci_gates():
 def test_fixture_readme_lists_outputs_and_the_handmade_drift_file():
     text = (ROOT / "tests" / "fixtures" / "README.md").read_text(encoding="utf-8")
     assert "outputs/" in text and "handmade/resource_drift.json" in text and "output_added_only" in text
+
+
+def test_claude_md_hard_constraints_name_the_only_downloadable_providers():
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "Never use cloud providers" in text
+    for provider in ("hashicorp/random", "hashicorp/local", "hashicorp/null"):
+        assert provider in text
+    fixtures = (ROOT / "tests" / "fixtures" / "README.md").read_text(encoding="utf-8")
+    assert "Providers downloaded" in fixtures

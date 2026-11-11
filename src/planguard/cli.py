@@ -82,6 +82,19 @@ class _Parser(argparse.ArgumentParser):
         raise _ArgExit(status)
 
 
+def _version() -> str:
+    """Installed package version; falls back to the module constant when not installed
+    (running from a checkout) or when the metadata cannot be read."""
+    try:
+        from importlib.metadata import version
+
+        return version("planguard")
+    except Exception:  # PackageNotFoundError or any broken-metadata problem
+        from planguard import __version__
+
+        return __version__
+
+
 def _build_parser() -> argparse.ArgumentParser:
     ap = _Parser(
         prog="planguard",
@@ -91,6 +104,7 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("plan", help="path to the JSON produced by `terraform show -json <planfile>`")
     ap.add_argument("--config", default="planguard.toml", help="contract file (default: ./planguard.toml)")
     ap.add_argument("--format", choices=("text", "json"), default="text", dest="fmt")
+    ap.add_argument("--version", action="version", version=f"planguard {_version()}")
     return ap
 
 

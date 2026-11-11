@@ -1,0 +1,10 @@
+# Keep the GitHub Actions used by .github/workflows/ up to date (weekly pull requests).
+# The copy under examples/github-actions/ is documentation and is not scanned.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"

@@ -97,11 +97,22 @@ aws_instance = 2
 
 Text and `--format json` print **only** rule id, severity, address, type and action (plus the
 `deposed` key when present). Attribute values are never printed, because they may contain
-secrets. Order is deterministic (address, then deposed key, then rule). Control characters in
-addresses are escaped in text output. Aggregate `budget` violations have no address and print `-`.
+secrets. Order is deterministic (address, then deposed key, then rule). Control and non-ASCII
+characters in addresses and types are escaped in text output.
+
+`budget` violations are aggregate (no address) and show the numbers instead:
+
+```
+[error] budget total changes 6 > max_changes 5
+[error] budget creates of aws_instance 3 > limit 2
+```
+
+In JSON, budget violations (and only those) have integer `count` and `limit` fields:
 
 ```json
-{"result": "fail", "changes_checked": 1, "violations": [
+{"result": "fail", "changes_checked": 6, "violations": [
+  {"rule": "budget", "severity": "error", "address": null, "type": null, "action": null,
+   "deposed": null, "count": 6, "limit": 5},
   {"rule": "no-replace", "severity": "error", "address": "terraform_data.example",
    "type": "terraform_data", "action": "delete,create", "deposed": null}]}
 ```

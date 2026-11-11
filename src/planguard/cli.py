@@ -33,6 +33,12 @@ def _safe(text: str | None) -> str:
 
 
 def _text_line(v: Violation) -> str:
+    if v.rule == "budget":
+        if v.type is None:
+            what = f"total changes {v.count} > max_changes {v.limit}"
+        else:
+            what = f"creates of {_safe(v.type)} {v.count} > limit {v.limit}"
+        return f"[{_safe(v.severity)}] budget {what}"
     line = f"[{_safe(v.severity)}] {_safe(v.rule)} {_safe(v.address)} ({_safe(v.type)}) {_safe(v.action)}"
     if v.deposed is not None:
         line += f" deposed={_safe(v.deposed)}"
@@ -40,7 +46,7 @@ def _text_line(v: Violation) -> str:
 
 
 def _json_obj(v: Violation) -> dict:
-    return {
+    obj = {
         "rule": v.rule,
         "severity": v.severity,
         "address": v.address,
@@ -48,6 +54,10 @@ def _json_obj(v: Violation) -> dict:
         "action": v.action,
         "deposed": v.deposed,
     }
+    if v.rule == "budget":
+        obj["count"] = v.count
+        obj["limit"] = v.limit
+    return obj
 
 
 def _build_parser() -> argparse.ArgumentParser:

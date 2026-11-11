@@ -21,6 +21,8 @@ class Violation:
     type: str | None
     action: str | None
     deposed: str | None = None
+    count: int | None = None  # budget only: observed number
+    limit: int | None = None  # budget only: configured maximum
 
     @property
     def sort_key(self) -> tuple[str, str, str, str]:
@@ -115,7 +117,7 @@ def budget(
     """Total changes and per-type creates must stay within limits.
 
     A change is any entry that is not no-op / read. A replacement counts as one
-    change and one create for its type. Aggregate violations carry no address.
+    change and one create for its type. Aggregate violations carry no address but do carry count and limit.
     """
     total = 0
     creates: dict[str, int] = {}
@@ -127,10 +129,11 @@ def budget(
             creates[c.type] = creates.get(c.type, 0) + 1
     out: list[Violation] = []
     if max_changes is not None and total > max_changes:
-        out.append(Violation("budget", SEVERITY_ERROR, None, None, None))
+        out.append(Violation("budget", SEVERITY_ERROR, None, None, None, count=total, limit=max_changes))
     for rtype, limit in max_creates_per_type.items():
-        if creates.get(rtype, 0) > limit:
-            out.append(Violation("budget", SEVERITY_ERROR, None, rtype, "create"))
+        count = creates.get(rtype, 0)
+        if count > limit:
+            out.append(Violation("budget", SEVERITY_ERROR, None, rtype, "create", count=count, limit=limit))
     return sorted(out, key=lambda v: v.sort_key)
 
 

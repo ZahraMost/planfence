@@ -84,14 +84,49 @@ def test_text_pass_line(capsys, cfg):
     assert out.strip() == "planguard: OK - 1 change(s) checked, all enabled rules passed"
 
 
-def test_budget_violation_has_dash_placeholders(capsys, tmp_path):
-    c = write_cfg(tmp_path, 'enabled_rules = ["budget"]\n[budget]\nmax_changes = 0\n[budget.max_creates_per_type]\nterraform_data = 0\n')
-    code, out, _ = run(capsys, fixture_path("create"), "--config", c)
+def test_budget_violations_show_numbers_in_text(capsys, tmp_path):
+    c = write_cfg(tmp_path, 'enabled_rules = ["budget"]\n[budget]\nmax_changes = 5\n[budget.max_creates_per_type]\naws_instance = 2\n')
+    plan = make_plan(
+        *[("aws_instance.i%d" % i, "aws_instance", ["create"]) for i in range(3)],
+        *[("aws_s3_bucket.b%d" % i, "aws_s3_bucket", ["update"]) for i in range(3)],
+    )
+    code, out, _ = run(capsys, write_plan(tmp_path, plan), "--config", c)
     assert code == 1
-    assert out.splitlines()[:2] == [
-        "[error] budget - (-) -",
-        "[error] budget - (terraform_data) create",
+    assert out.splitlines() == [
+        "[error] budget total changes 6 > max_changes 5",
+        "[error] budget creates of aws_instance 3 > limit 2",
+        "planguard: FAIL - 2 violation(s)",
     ]
+
+
+def test_budget_json_has_count_and_limit_only_for_budget(capsys, tmp_path):
+    c = write_cfg(
+        tmp_path,
+        'enabled_rules = ["budget", "no-delete"]\n[budget]\nmax_changes = 0\n[budget.max_creates_per_type]\nterraform_data = 0\n',
+    )
+    plan = make_plan(("terraform_data.a", "terraform_data", ["create"]), ("terraform_data.b", "terraform_data", ["delete"]))
+    code, out, _ = run(capsys, write_plan(tmp_path, plan), "--config", c, "--format", "json")
+    assert code == 1
+    vs = json.loads(out)["violations"]
+    by_rule = {}
+    for v in vs:
+        by_rule.setdefault(v["rule"], []).append(v)
+    assert by_rule["budget"] == [
+        {"rule": "budget", "severity": "error", "address": None, "type": None, "action": None,
+         "deposed": None, "count": 2, "limit": 0},
+        {"rule": "budget", "severity": "error", "address": None, "type": "terraform_data", "action": "create",
+         "deposed": None, "count": 1, "limit": 0},
+    ]
+    assert all(type(v["count"]) is int and type(v["limit"]) is int for v in by_rule["budget"])
+    assert "count" not in by_rule["no-delete"][0] and "limit" not in by_rule["no-delete"][0]
+
+
+def test_budget_type_name_is_escaped_in_text(capsys, tmp_path):
+    c = write_cfg(tmp_path, 'enabled_rules = ["budget"]\n[budget.max_creates_per_type]\n"a\\u001b[31mb" = 0\n')
+    plan = make_plan(("a.b", "a\x1b[31mb", ["create"]))
+    code, out, _ = run(capsys, write_plan(tmp_path, plan), "--config", c)
+    assert code == 1 and "\x1b" not in out
+    assert out.splitlines()[0] == "[error] budget creates of a\\x1b[31mb 1 > limit 0"
 
 
 # ---- json output -------------------------------------------------------------

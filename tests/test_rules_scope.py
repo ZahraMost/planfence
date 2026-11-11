@@ -167,3 +167,9 @@ def test_readme_warns_about_lone_star():
 
     readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
     assert "lone `*`" in readme and "meaningless" in readme
+
+
+def test_stateful_types_are_not_prefix_matched():
+    # "terraform_data" must not be protected by listing a shorter / different type name
+    for listed in ("terraform", "terraform_dat", "t", "terraform_data_x", "TERRAFORM_DATA"):
+        assert stateful_protect(changes("delete"), [listed]) == [], listed

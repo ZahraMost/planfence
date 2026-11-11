@@ -80,14 +80,46 @@ def glob_match(pattern: str, text: str) -> bool:
     return p == lp
 
 
+class AddressMatcher:
+    """Match an address against many patterns, with identical semantics to
+    glob_match but cheaper for the common pattern shapes:
+
+    - no wildcard            -> set lookup
+    - `prefix*` (one `*` at the end, no `?`) -> str.startswith (C loop over all prefixes)
+    - everything else        -> glob_match
+    """
+
+    def __init__(self, patterns: Iterable[str]):
+        exact: set[str] = set()
+        prefixes: set[str] = set()
+        generic: dict[str, None] = {}  # ordered, de-duplicated
+        for p in patterns:
+            if "*" not in p and "?" not in p:
+                exact.add(p)
+            elif p.endswith("*") and "*" not in p[:-1] and "?" not in p:
+                prefixes.add(p[:-1])
+            else:
+                generic[p] = None
+        self._exact = frozenset(exact)
+        self._prefixes = tuple(sorted(prefixes))
+        self._generic = tuple(generic)
+
+    def matches(self, text: str) -> bool:
+        if text in self._exact:
+            return True
+        if self._prefixes and text.startswith(self._prefixes):
+            return True
+        return any(glob_match(p, text) for p in self._generic)
+
+
 def scope(changes: Iterable, allow: Iterable[str]) -> list[Violation]:
     """Every change (not no-op / read) must match at least one allowed pattern."""
-    patterns = list(allow)
+    matcher = AddressMatcher(allow)
     return sorted(
         (
             _from_change("scope", SEVERITY_ERROR, c)
             for c in changes
-            if c.is_change and not any(glob_match(p, c.address) for p in patterns)
+            if c.is_change and not matcher.matches(c.address)
         ),
         key=lambda v: v.sort_key,
     )

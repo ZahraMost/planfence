@@ -94,6 +94,9 @@ aws_instance = 2
 - **Address patterns** are not fnmatch: only `*` (any characters, including dots and quotes) and
   `?` (one character) are wildcards. `[`, `]` and everything else are literal, matching is
   case-sensitive, so `aws_instance.web[0]` and `aws_instance.web["blue"]` mean exactly that.
+- **Limits:** at most 500 `scope.allow` patterns, each at most 512 characters (more is exit 2).
+  Patterns without wildcards and patterns of the form `prefix*` are matched with fast paths
+  (same semantics); other wildcard patterns use a linear-scan matcher.
 - **Stateful types** are matched exactly (no wildcards). planguard ships **no default list**:
   deciding what is stateful in your infrastructure is your call.
 
@@ -162,6 +165,9 @@ Not verified: OpenTofu; plans containing `deposed` objects; `moved` blocks (plan
   no network access.
 
 ## CI
+
+Run planguard with a job timeout (e.g. `timeout-minutes: 5` in GitHub Actions) so an unexpectedly
+huge or adversarial plan can never hang your pipeline. Both workflows in this repo set one.
 
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the test suite on Python 3.11-3.13.
 - [examples/github-actions/planguard-example.yml](examples/github-actions/planguard-example.yml)

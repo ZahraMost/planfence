@@ -165,7 +165,8 @@ Not verified: OpenTofu; plans containing `deposed` objects; `moved` blocks (plan
 
 - The plan JSON contains attribute values, possibly secrets. Don't commit it or upload it as a
   CI artifact; delete it after the check.
-- Input is treated as untrusted: 128 MiB size limit, duplicate JSON keys rejected, no `eval`/`exec`,
+- Input is treated as untrusted: 128 MiB size limit, resource `address`, `type` and `deposed`
+  strings limited to 4096 characters (longer is exit 2, the value is never echoed), duplicate JSON keys rejected, no `eval`/`exec`,
   no network access.
 
 ## CI

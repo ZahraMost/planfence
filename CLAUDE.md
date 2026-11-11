@@ -48,6 +48,8 @@ Hardening (tested in tests/test_exit_hardening.py):
     happens in addition to the actions, e.g. import + no-op). Verified with real
     fixtures (import, import_replace, import_noop).
   Absent, `[]` (and `importing: null`) are fine.
+- String limit: `address`, `type` and `deposed` longer than 4096 characters
+  (characters, not bytes) -> exit 2; message names field and index only.
 - Each item: `address`, `type`, `change.actions`; `deposed` key when present
   (not yet seen in a real fixture).
 - Known `actions` lists (all verified with real fixtures):
@@ -112,9 +114,8 @@ aws_instance = 2
 - scope matching uses AddressMatcher: no-wildcard patterns -> set lookup,
   `prefix*` (single trailing `*`, no `?`) -> startswith, everything else ->
   glob_match. Semantics MUST stay identical to glob_match (fuzz-tested).
-- Residual resource risk: glob_match is O(pattern x address) per call for general
-  patterns and addresses are bounded only by the 128 MiB plan size limit. Use CI
-  `timeout-minutes`.
+- glob_match work per call is bounded by pattern length (<= 512) x address length
+  (<= 4096, see Input facts). CI `timeout-minutes` is still recommended.
 - Config path: `--config` (default `./planguard.toml`); a missing file -> exit 2.
   Config file size limit 1 MiB.
 - What counts as "stateful" is the USER's decision (security behaviour): never

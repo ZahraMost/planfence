@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_MAX_BYTES = 128 * 1024 * 1024
+MAX_STRING_LENGTH = 4096  # characters; applies to resource_changes address, type and deposed
 
 _FORMAT_VERSION_RE = re.compile(r"1\.[0-9]+")
 
@@ -92,6 +93,11 @@ def _is_nonempty_str(value: object) -> bool:
     return isinstance(value, str) and value != ""
 
 
+def _check_length(where: str, name: str, value: str) -> None:
+    if len(value) > MAX_STRING_LENGTH:
+        raise PlanError(f"{where}: '{name}' longer than {MAX_STRING_LENGTH} characters")
+
+
 def _parse_change(index: int, item: object) -> Change:
     where = f"resource_changes[{index}]"
     if not isinstance(item, dict):
@@ -99,9 +105,11 @@ def _parse_change(index: int, item: object) -> Change:
     address = item.get("address")
     if not _is_nonempty_str(address):
         raise PlanError(f"{where}: 'address' missing or not a non-empty string")
+    _check_length(where, "address", address)
     rtype = item.get("type")
     if not _is_nonempty_str(rtype):
         raise PlanError(f"{where}: 'type' missing or not a non-empty string")
+    _check_length(where, "type", rtype)
     change = item.get("change")
     if not isinstance(change, dict):
         raise PlanError(f"{where}: 'change' missing or not an object")
@@ -118,6 +126,7 @@ def _parse_change(index: int, item: object) -> Change:
         deposed = item["deposed"]
         if not _is_nonempty_str(deposed):
             raise PlanError(f"{where}: 'deposed' present but not a non-empty string")
+        _check_length(where, "deposed", deposed)
     return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed)
 
 

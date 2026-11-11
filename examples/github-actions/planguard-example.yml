@@ -1,0 +1,52 @@
+# EXAMPLE ONLY - copy into your own repository's .github/workflows/ and adapt.
+# It is deliberately kept outside .github/workflows/ here so it does not run
+# in the planguard repo itself.
+#
+# Flow: terraform plan -> terraform show -json -> planguard. Nothing is applied.
+name: terraform-plan-guard
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  plan-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # The wrapper adds extra lines to stdout and would corrupt the JSON.
+          terraform_wrapper: false
+
+      # Provide your own provider credentials/backend config here (for example via
+      # OIDC). planguard itself needs no credentials and never contacts the cloud.
+      - name: Terraform plan
+        run: |
+          terraform init -input=false
+          terraform plan -input=false -out=tfplan
+
+      - name: Plan to JSON
+        run: terraform show -json tfplan > plan.json
+
+      # Replace with your own source/version. planguard has no runtime dependencies.
+      - name: Install planguard
+        run: python -m pip install "git+https://github.com/YOUR-ORG/planguard.git@v0.1.0"
+
+      # Exit 0 = within contract, 1 = violation, 2 = plan/config not understood.
+      # Any non-zero exit fails the job (fail-closed).
+      - name: Check plan against contract
+        run: planguard plan.json --config planguard.toml
+
+      # plan.json and tfplan contain attribute values (possibly secrets):
+      # remove them and never upload them as artifacts.
+      - name: Remove plan files
+        if: always()
+        run: rm -f plan.json tfplan

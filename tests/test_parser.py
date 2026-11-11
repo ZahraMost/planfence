@@ -113,6 +113,7 @@ BAD_PLANS = {
     "format 0.2": _mut(lambda p: p.update(format_version="0.2")),
     "format '1'": _mut(lambda p: p.update(format_version="1")),
     "format '1.2.3'": _mut(lambda p: p.update(format_version="1.2.3")),
+    "format '1.'": _mut(lambda p: p.update(format_version="1.")),
     "format '1.x'": _mut(lambda p: p.update(format_version="1.x")),
     "format ' 1.2'": _mut(lambda p: p.update(format_version=" 1.2")),
     "format '1.2\\n'": _mut(lambda p: p.update(format_version="1.2\n")),
@@ -234,4 +235,22 @@ def test_deeply_nested_json_fails_closed(tmp_path):
 def test_duplicate_keys_rejected(tmp_path):
     text = '{"format_version":"1.2","errored":false,"errored":true,"complete":true}'
     with pytest.raises(PlanError):
+        load_plan(_write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # the LAST value is harmless, so only an explicit duplicate check can refuse these
+        '{"format_version":"1.2","errored":true,"errored":false,"complete":true}',
+        '{"format_version":"1.2","errored":false,"complete":false,"complete":true}',
+        '{"format_version":"1.2","errored":false,"complete":true,"resource_changes":[],"resource_changes":[]}',
+        '{"format_version":"1.2","errored":false,"complete":true,"resource_changes":[{"address":"a.b","address":"a.b",'
+        '"type":"a","change":{"actions":["create"]}}]}',
+        '{"format_version":"1.2","errored":false,"complete":true,"resource_changes":[{"address":"a.b","type":"a",'
+        '"change":{"actions":["delete"],"actions":["no-op"]}}]}',
+    ],
+)
+def test_duplicate_keys_are_refused_even_when_the_last_value_would_be_fine(tmp_path, text):
+    with pytest.raises(PlanError, match="duplicate key"):
         load_plan(_write(tmp_path, text))

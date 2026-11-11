@@ -8,6 +8,10 @@ enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget
 # never plan with -target / -exclude (OpenTofu partial plans cannot be recognised).
 # plan_source = "opentofu"
 
+# Recommended for CI gates: refuse plans whose only effects are outside resource_changes (output
+# changes, resource drift, pure moves), e.g. `-refresh-only` plans. The default "allow" ignores them.
+# state_only_plans = "refuse"
+
 [scope]
 # Only these addresses may change. `*` matches any characters (including dots
 # and quotes), `?` matches one character, everything else (including `[`) is literal.

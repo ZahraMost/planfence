@@ -213,6 +213,21 @@ planguard sees only the plan JSON, not the command line.
   `replace_paths`; same `actions` as a config-driven replacement. planguard cannot know the
   flag: keep `no-replace` enabled if replacements are not allowed (no-delete does not fire).
 
+## state_only_plans (config key, default "allow"; anything else -> exit 2)
+- `state_only_plans = "refuse"`: exit 2 when resource_changes has no resource changes (no entry other than no-op /
+  read; moves are NOT counted as changes) AND (an output_changes entry with actions other
+  than exactly ["no-op"], OR a non-empty resource_drift, OR at least one moved entry = a
+  pure move). Plans that also change resources are never refused by this key (even
+  malformed output_changes/resource_drift are ignored then). In the zero-change case a
+  non-object output_changes / non-list resource_drift is refused too. Messages name fields only.
+- Verified with real plans (tests/fixtures/outputs, modes, moved; both tools): unchanged output
+  = ["no-op"] (not refused); output changing with a resource change (not refused); refresh-only
+  with real output drift (refused); output only added, `output_added_only` (refused); pure move
+  (refused). `resource_drift` only via the hand-made tests/fixtures/handmade/resource_drift.json
+  (real drift cannot be produced offline).
+- Recommended for any CI gate; default stays "allow" so existing contracts keep working.
+- Passed explicitly: config -> load_plan(path, plan_source=..., state_only_plans=...) -> parse_plan.
+
 ## NOT verified / known gaps (keep this list honest)
 - OpenTofu: verified only for 1.13.9 and only on the 16 terraform_data scenarios (same as
   Terraform 1.17.2 except no `complete`/`applyable`). OpenTofu partial plans (-target /
@@ -226,7 +241,8 @@ planguard sees only the plan JSON, not the command line.
   their entries is unverified (not producible with Terraform 1.17.2 / OpenTofu 1.13.9 + built-in
   resources). `importing` IS verified with real fixtures.
 - Action lists not seen in real output (e.g. ["create","forget"]) -> exit 2.
-- `output_changes` and `resource_drift` are deliberately not checked in v0.1. Real
+- `output_changes` and `resource_drift` are not judged by default (state_only_plans = "allow"); with
+  "refuse" they only make a zero-change plan exit 2. Real
   `resource_drift` could not be produced offline (no fixture); real output drift under
   -refresh-only was (tests/fixtures/modes) and passes with exit 0.
 - The GitHub Actions workflows have not run on GitHub; the example workflow's
@@ -267,9 +283,11 @@ or any network use other than `pip install` and Terraform's own init.
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANGUARD_FUZZ_N
   sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
-- scripts/mutation_check.py: 104 source mutations run against temp copies of src/ (never
+- scripts/mutation_check.py: 120 source mutations run against temp copies of src/ (never
   edits src/). Every mutant must be KILLED or listed in its EQUIVALENT dict with a
   reason; add a test for any survivor. Run it after changing rules/parser/config/cli.
+  Also run it with `--pytest-args "tests --ignore=tests/test_fuzz.py"`: every mutant must
+  be killed by the deterministic tests alone, not by luck in the fuzzer.
 - Tests honour PLANGUARD_SRC (see tests/conftest.py SRC) so subprocess tests can
   run against another copy of src/.
 - When unsure about Terraform behaviour, say so and ask me to verify with a

@@ -105,6 +105,7 @@ See [examples/planguard.toml](examples/planguard.toml).
 ```toml
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
 # plan_source = "opentofu"   # optional, default "terraform"; see the OpenTofu section
+# state_only_plans = "refuse"  # optional, default "allow"; recommended for CI gates
 
 [scope]
 allow = ["module.app.*", 'aws_instance.web["blue"]']
@@ -202,11 +203,34 @@ planguard sees only the finished plan JSON, not the command line that produced i
   that would change the state: when a data source's remote state changed, the only trace is
   `output_changes` (Terraform also reports `applyable: true`), which planguard does not check. Do not
   treat a pass on a refresh-only plan as "nothing will change"; applying it updates the state.
+  Set `state_only_plans = "refuse"` to close this gap (see below).
   Drift of a managed resource (`resource_drift`) could not be produced offline and is not verified.
 - **`-replace=ADDR`.** The resource appears as `["delete","create"]` with
   `action_reason: replace_by_request` (and no `replace_paths`), indistinguishable by `actions` from a
   config-driven replacement. planguard cannot know about the flag, so keep `no-replace` enabled if
   replacements are not allowed. `no-delete` does not fire on a replacement.
+
+### Refusing state-only plans: `state_only_plans`
+
+Some plans change nothing in `resource_changes` yet still do something when applied: they update
+outputs, record drift, or only move resources between addresses. The default
+(`state_only_plans = "allow"`) keeps today's behaviour and does not look at them. With
+`state_only_plans = "refuse"` planguard exits 2 when the plan has **no resource changes** (no entry
+other than no-op or read; moves do not count as changes) **and** at least one of:
+
+- an `output_changes` entry whose actions are not exactly `["no-op"]`;
+- a non-empty `resource_drift`;
+- at least one moved entry (a pure move).
+
+Plans that also change resources are never refused by this key. Verified with real plans of both
+tools ([tests/fixtures/README.md](tests/fixtures/README.md)): an unchanged output is listed as
+`["no-op"]` (not refused); an output that changes because a resource changes comes together with the
+resource change (not refused); `-refresh-only` with real output drift is refused; a plan that only
+adds an output (`output_added_only`) is refused; a pure move is refused. `resource_drift` is verified
+only with a hand-made fixture, because real drift of a managed resource cannot be produced offline.
+Malformed `output_changes` / `resource_drift` in such a plan are refused as well. Use `"refuse"` for a
+CI gate: the gate should say "nothing happens that planguard did not judge". The default stays
+`"allow"` so existing contracts keep working.
 
 ## What planguard does NOT claim
 
@@ -344,7 +368,7 @@ python3.13 -m venv .venv
 # tests/test_fuzz.py runs 20,000 deterministic mutations against an independent oracle
 # (about 5 s); set PLANGUARD_FUZZ_N to change the count
 
-# mutation testing: applies 104 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 120 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
 

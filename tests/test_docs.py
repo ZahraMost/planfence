@@ -188,3 +188,34 @@ def test_moved_blocks_no_longer_listed_as_unverified(name):
     assert "`moved` blocks (planguard judges only" not in text
     assert "`moved` blocks: not verified" not in text
     assert "ignores `previous_address`" not in text
+
+
+# ---- state_only_plans -----------------------------------------------------------------------------
+
+STATE_ONLY_NEEDLES = [
+    'state_only_plans = "refuse"',
+    "no resource changes",
+    "pure move",
+    "`resource_drift`",
+    "output_added_only",
+    "hand-made",
+    "CI gate",
+    "never refused by this key",
+]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_state_only_plans_documented(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for needle in STATE_ONLY_NEEDLES:
+        assert needle in text, f"{name}: missing {needle!r}"
+
+
+def test_example_config_recommends_refuse_for_ci_gates():
+    text = (ROOT / "examples" / "planguard.toml").read_text(encoding="utf-8")
+    assert 'state_only_plans = "refuse"' in text and "CI" in text
+
+
+def test_fixture_readme_lists_outputs_and_the_handmade_drift_file():
+    text = (ROOT / "tests" / "fixtures" / "README.md").read_text(encoding="utf-8")
+    assert "outputs/" in text and "handmade/resource_drift.json" in text and "output_added_only" in text

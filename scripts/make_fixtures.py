@@ -139,6 +139,11 @@ def moved(src: str, dst: str) -> str:
 MODULE_THING: Files = {"modules/m/main.tf": named("thing")}
 
 
+def with_output(value: str, output: bool = True) -> str:
+    out = 'output "o" {\n  value = terraform_data.example.input\n}\n' if output else ""
+    return f'resource "terraform_data" "example" {{\n  input = "{value}"\n}}\n\n{out}'
+
+
 @dataclass
 class Scenario:
     planned: Files
@@ -208,6 +213,13 @@ SCENARIOS: dict[str, Scenario] = {
         planned={"main.tf": 'module "m" {\n  source = "./modules/m"\n}\n'
                  + moved("terraform_data.thing", "module.m.terraform_data.thing")},
     ),
+    # ordinary plans with an output (stored in tests/fixtures/outputs/<tool>/)
+    "output_unchanged": Scenario(
+        baseline={"main.tf": with_output("a")}, planned={"main.tf": with_output("a")}, default=False),
+    "output_changes_with_resource": Scenario(
+        baseline={"main.tf": with_output("a")}, planned={"main.tf": with_output("b")}, default=False),
+    "output_added_only": Scenario(
+        baseline={"main.tf": with_output("a", output=False)}, planned={"main.tf": with_output("a")}, default=False),
     "two_exclude": Scenario(  # Terraform 1.17.2 has no -exclude; OpenTofu 1.13.9 does
         baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},
         plan_args=("-exclude=terraform_data.b",), default=False, tools=("tofu",),

@@ -15,6 +15,7 @@ DEFAULT_MAX_BYTES = 128 * 1024 * 1024
 MAX_STRING_LENGTH = 4096  # characters; applies to resource_changes address, type and deposed
 
 PLAN_SOURCES = ("terraform", "opentofu")
+STATE_ONLY_MODES = ("allow", "refuse")
 
 _FORMAT_VERSION_RE = re.compile(r"1\.[0-9]+")
 
@@ -146,15 +147,42 @@ def _parse_change(index: int, item: object) -> Change:
     return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed, previous_address=previous)
 
 
-def parse_plan(data: object, plan_source: str = "terraform") -> Plan:
+def _refuse_state_only(data: dict, changes: list[Change]) -> None:
+    """state_only_plans = "refuse": a plan with no resource changes whose only effects are moves,
+    output changes or resource drift is refused. Plans that change resources are never refused here."""
+    if any(c.is_change for c in changes):
+        return
+    if any(c.is_move for c in changes):
+        raise PlanError('state_only_plans = "refuse": plan has no resource changes but moves resources')
+    if "output_changes" in data:
+        output_changes = data["output_changes"]
+        if not isinstance(output_changes, dict):
+            raise PlanError("'output_changes' is not an object")
+        for entry in output_changes.values():
+            if not (isinstance(entry, dict) and entry.get("actions") == ["no-op"]):
+                raise PlanError('state_only_plans = "refuse": plan has no resource changes but changes output_changes')
+    if "resource_drift" in data:
+        drift = data["resource_drift"]
+        if not isinstance(drift, list):
+            raise PlanError("'resource_drift' is not a list")
+        if drift:
+            raise PlanError('state_only_plans = "refuse": plan has no resource changes but reports resource_drift')
+
+
+def parse_plan(data: object, plan_source: str = "terraform", state_only_plans: str = "allow") -> Plan:
     """Validate decoded JSON and return a Plan. Raises PlanError otherwise.
 
     plan_source "terraform" (default, strict): `errored` and `complete` must be present booleans.
     plan_source "opentofu": OpenTofu's plan JSON has no `complete` (and no `applyable`), so
     `complete` is optional, but if present it must be boolean true. `errored` stays required.
+
+    state_only_plans "allow" (default) keeps output_changes / resource_drift / moves out of the
+    verdict; "refuse" refuses plans whose only effects are those (see _refuse_state_only).
     """
     if plan_source not in PLAN_SOURCES:
         raise PlanError("unknown plan_source")
+    if state_only_plans not in STATE_ONLY_MODES:
+        raise PlanError("unknown state_only_plans")
     if not isinstance(data, dict):
         raise PlanError("top level is not a JSON object")
     version = data.get("format_version")
@@ -188,11 +216,18 @@ def parse_plan(data: object, plan_source: str = "terraform") -> Plan:
         raise PlanError("'resource_changes' is not a list")
     changes = [_parse_change(i, item) for i, item in enumerate(raw)]
     changes.sort(key=lambda c: c.sort_key)
+    if state_only_plans == "refuse":
+        _refuse_state_only(data, changes)
     return Plan(changes=tuple(changes))
 
 
-def load_plan(path: str | Path, max_bytes: int = DEFAULT_MAX_BYTES, plan_source: str = "terraform") -> Plan:
-    """Read, size-limit, decode and validate a plan JSON file (see parse_plan for plan_source)."""
+def load_plan(
+    path: str | Path,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+    plan_source: str = "terraform",
+    state_only_plans: str = "allow",
+) -> Plan:
+    """Read, size-limit, decode and validate a plan JSON file (see parse_plan for the modes)."""
     try:
         with open(path, "rb") as fh:
             raw = fh.read(max_bytes + 1)
@@ -206,4 +241,4 @@ def load_plan(path: str | Path, max_bytes: int = DEFAULT_MAX_BYTES, plan_source:
         raise
     except (ValueError, RecursionError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
         raise PlanError("plan file is not valid JSON") from None
-    return parse_plan(data, plan_source)
+    return parse_plan(data, plan_source, state_only_plans)

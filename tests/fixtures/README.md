@@ -109,6 +109,21 @@ Both tools are identical (apart from OpenTofu's missing `complete` / `applyable`
 `applyable: true` for the pure moves: applying them changes the state. The only extra key on an entry
 is `previous_address` (plus `module_address` for the module case); the top-level shape is unchanged.
 
+## outputs/ (generated): ordinary plans that have an output
+
+`outputs/terraform/` (Terraform 1.17.2) and `outputs/opentofu/` (OpenTofu 1.13.9), non-default scenarios
+(`--out tests/fixtures/outputs/<dir> output_unchanged output_changes_with_resource output_added_only`).
+Identical in both tools. `resource_drift` is absent in all of them.
+
+| Scenario | `resource_changes` | `output_changes` |
+|---|---|---|
+| `output_unchanged` | `terraform_data.example` -> `["no-op"]` | `o` -> `["no-op"]` |
+| `output_changes_with_resource` | `terraform_data.example` -> `["update"]` | `o` -> `["update"]` |
+| `output_added_only` | `terraform_data.example` -> `["no-op"]` | `o` -> `["create"]` |
+
+An unchanged output is listed with `["no-op"]`; that is why the `state_only_plans = "refuse"` rule looks
+for output actions that are not exactly `["no-op"]`.
+
 ## handmade
 
 Hand-written, NOT verified against a real plan. They exist only to test that
@@ -122,6 +137,7 @@ Both are `real/noop.json` plus one extra key.
 |---|---|---|
 | handmade/action_invocations.json | `action_invocations: [{...}]` | needs a provider with actions (Terraform actions) |
 | handmade/deferred_changes.json | `deferred_changes: [{...}]` | needs `plan -allow-deferral` (not available here) |
+| handmade/resource_drift.json | `resource_drift: [{...}]` (one `update` of `terraform_data.example`), on top of `real/noop.json` | drift of a managed resource needs something outside Terraform to change it; `terraform_data` has no external system and editing the state by hand would be faking |
 
 Other hand-built plans live inline in the tests (e.g. `deposed` entries, `output_changes`,
 `resource_drift`) and are not files.

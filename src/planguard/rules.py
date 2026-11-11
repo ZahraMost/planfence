@@ -45,3 +45,63 @@ def no_replace(changes: Iterable) -> list[Violation]:
         (_from_change("no-replace", SEVERITY_ERROR, c) for c in changes if c.is_replace),
         key=lambda v: v.sort_key,
     )
+
+
+# ---- address matching ------------------------------------------------------
+
+def glob_match(pattern: str, text: str) -> bool:
+    """Match `text` against `pattern`, case-sensitive.
+
+    Only `*` (any run of characters, including none, dots and quotes) and `?`
+    (exactly one character) are wildcards. Everything else, including `[`, is
+    literal. Linear-time two-pointer algorithm (no regex, no backtracking blowup).
+    """
+    p = t = 0
+    lp, lt = len(pattern), len(text)
+    star = -1
+    mark = 0
+    while t < lt:
+        if p < lp and pattern[p] == "*":
+            star, mark = p, t
+            p += 1
+        elif p < lp and (pattern[p] == "?" or pattern[p] == text[t]):
+            p += 1
+            t += 1
+        elif star != -1:
+            p = star + 1
+            mark += 1
+            t = mark
+        else:
+            return False
+    while p < lp and pattern[p] == "*":
+        p += 1
+    return p == lp
+
+
+def scope(changes: Iterable, allow: Iterable[str]) -> list[Violation]:
+    """Every change (not no-op / read) must match at least one allowed pattern."""
+    patterns = list(allow)
+    return sorted(
+        (
+            _from_change("scope", SEVERITY_ERROR, c)
+            for c in changes
+            if c.is_change and not any(glob_match(p, c.address) for p in patterns)
+        ),
+        key=lambda v: v.sort_key,
+    )
+
+
+def stateful_protect(changes: Iterable, stateful_types: Iterable[str]) -> list[Violation]:
+    """delete, replace or forget of a configured stateful type is critical.
+
+    Types are matched exactly (no wildcards, case-sensitive).
+    """
+    types = frozenset(stateful_types)
+    return sorted(
+        (
+            _from_change("stateful-protect", SEVERITY_CRITICAL, c)
+            for c in changes
+            if c.type in types and (c.is_delete or c.is_replace or c.is_forget)
+        ),
+        key=lambda v: v.sort_key,
+    )

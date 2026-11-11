@@ -5,6 +5,7 @@ Format:
 
     enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
     plan_source = "terraform"     # optional: "terraform" (default, strict) or "opentofu"
+    state_only_plans = "allow"    # optional: "allow" (default) or "refuse" (see README)
 
     [scope]                       # required iff "scope" is enabled
     allow = ["aws_s3_bucket.*", "module.app.*"]   # at most 500 patterns, each <= 512 chars
@@ -24,7 +25,7 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from planguard.parser import PLAN_SOURCES
+from planguard.parser import PLAN_SOURCES, STATE_ONLY_MODES
 
 MAX_CONFIG_BYTES = 1024 * 1024
 MAX_ALLOW_PATTERNS = 500
@@ -34,7 +35,7 @@ RULE_IDS = ("no-delete", "no-replace", "scope", "stateful-protect", "budget")
 
 # rule id -> config section it requires
 _SECTION_FOR_RULE = {"scope": "scope", "stateful-protect": "stateful", "budget": "budget"}
-_TOP_KEYS = {"enabled_rules", "plan_source", "scope", "stateful", "budget"}
+_TOP_KEYS = {"enabled_rules", "plan_source", "state_only_plans", "scope", "stateful", "budget"}
 
 
 class ConfigError(Exception):
@@ -49,6 +50,7 @@ class Config:
     max_changes: int | None = None
     max_creates_per_type: dict[str, int] = field(default_factory=dict)
     plan_source: str = "terraform"
+    state_only_plans: str = "allow"
 
 
 def _table(value: object, name: str, allowed: set[str]) -> dict:
@@ -102,6 +104,12 @@ def parse_config(data: object) -> Config:
         if not isinstance(plan_source, str) or plan_source not in PLAN_SOURCES:
             raise ConfigError('plan_source must be "terraform" or "opentofu"')
 
+    state_only_plans = "allow"
+    if "state_only_plans" in data:
+        state_only_plans = data["state_only_plans"]
+        if not isinstance(state_only_plans, str) or state_only_plans not in STATE_ONLY_MODES:
+            raise ConfigError('state_only_plans must be "allow" or "refuse"')
+
     allow: tuple[str, ...] = ()
     if "scope" in data:
         scope = _table(data["scope"], "scope", {"allow"})
@@ -144,6 +152,7 @@ def parse_config(data: object) -> Config:
         max_changes=max_changes,
         max_creates_per_type=max_creates,
         plan_source=plan_source,
+        state_only_plans=state_only_plans,
     )
 
 

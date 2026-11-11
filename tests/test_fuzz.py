@@ -68,6 +68,15 @@ CONFIGS = {
         "creates": {"terraform_data": 1},
     },
     "tofu-delete-only": {"rules": ["no-delete"], "plan_source": "opentofu"},
+    "refuse-delete-only": {"rules": ["no-delete"], "state_only_plans": "refuse"},
+    "refuse-full": {
+        "rules": ["no-delete", "scope", "budget"],
+        "state_only_plans": "refuse",
+        "allow": ["terraform_data.*", "module.child.*", "module.m.*"],
+        "max_changes": 3,
+    },
+    "tofu-refuse": {"rules": ["no-replace"], "plan_source": "opentofu", "state_only_plans": "refuse"},
+    "allow-explicit": {"rules": ["no-delete"], "state_only_plans": "allow"},
 }
 
 
@@ -75,6 +84,8 @@ def toml_of(cfg):
     lines = [f"enabled_rules = {json.dumps(cfg['rules'])}"]
     if "plan_source" in cfg:
         lines.append(f"plan_source = {json.dumps(cfg['plan_source'])}")
+    if "state_only_plans" in cfg:
+        lines.append(f"state_only_plans = {json.dumps(cfg['state_only_plans'])}")
     if "scope" in cfg["rules"]:
         lines += ["[scope]", f"allow = {json.dumps(cfg['allow'])}"]
     if "stateful-protect" in cfg["rules"]:
@@ -199,13 +210,36 @@ def oracle_violations(entries, cfg):
     return found
 
 
+def oracle_state_only_refused(doc, entries, cfg):
+    """state_only_plans = "refuse": zero changes (moves not counted) AND (a move, or an output_changes
+    entry whose actions are not exactly ["no-op"], or a non-empty resource_drift). Malformed
+    output_changes / resource_drift count as refused. Never consulted when something changes."""
+    if cfg.get("state_only_plans", "allow") != "refuse":
+        return False
+    if any(e[2] not in (["no-op"], ["read"]) for e in entries):
+        return False
+    if any(e[4] is not None for e in entries):
+        return True
+    if "output_changes" in doc:
+        oc = doc["output_changes"]
+        if not isinstance(oc, dict):
+            return True
+        if any(not (isinstance(v, dict) and v.get("actions") == ["no-op"]) for v in oc.values()):
+            return True
+    if "resource_drift" in doc:
+        rd = doc["resource_drift"]
+        if not isinstance(rd, list) or len(rd) > 0:
+            return True
+    return False
+
+
 def oracle(raw, cfg):
     try:
         doc = json.loads(raw, object_pairs_hook=_nodups)
     except (ValueError, RecursionError):
         return 2
     entries = oracle_entries(doc, cfg.get("plan_source", "terraform"))
-    if entries is None:
+    if entries is None or oracle_state_only_refused(doc, entries, cfg):
         return 2
     return 1 if oracle_violations(entries, cfg) else 0
 
@@ -214,8 +248,11 @@ def oracle(raw, cfg):
 # Seeds
 # ---------------------------------------------------------------------------
 
-def plant(doc):
-    """Put the secret into every place attribute values live."""
+def plant(doc, variant=0):
+    """Put the secret into every place attribute values live. `variant` varies output_changes /
+    resource_drift so that every combination reaches the state_only_plans rule:
+      0 outputs updated + drift non-empty, 1 all outputs no-op + empty drift, 2 {} / absent,
+      3 keep whatever the real fixture has (secrets only inside resource_changes)."""
     for rc in doc.get("resource_changes") or []:
         ch = rc.get("change")
         if isinstance(ch, dict):
@@ -223,17 +260,25 @@ def plant(doc):
             ch["after"] = {"password": SECRET, "nested": {"k": SECRET}}
             ch["after_sensitive"] = {"password": SECRET}
     doc["planned_values"] = {"root_module": {"secret": SECRET}}
-    doc["output_changes"] = {"o": {"actions": ["update"], "before": SECRET, "after": SECRET}}
-    doc["resource_drift"] = [{"address": "x.y", "type": "x", "change": {"actions": ["delete"], "before": SECRET}}]
+    if variant == 0:
+        doc["output_changes"] = {"o": {"actions": ["update"], "before": SECRET, "after": SECRET}}
+        doc["resource_drift"] = [{"address": "x.y", "type": "x", "change": {"actions": ["delete"], "before": SECRET}}]
+    elif variant == 1:
+        doc["output_changes"] = {"o": {"actions": ["no-op"], "before": SECRET, "after": SECRET}}
+        doc["resource_drift"] = []
+    elif variant == 2:
+        doc["output_changes"] = {}
+        doc.pop("resource_drift", None)
     return doc
 
 
 def _load_seeds():
     seeds = []
     for sub_dir in ("real", "handmade", "opentofu", "partial/terraform", "partial/opentofu",
-                    "moved/terraform", "moved/opentofu"):
+                    "moved/terraform", "moved/opentofu",
+                    "outputs/terraform", "outputs/opentofu"):
         for path in sorted((FIXTURES / sub_dir).glob("*.json")):
-            seeds.append((f"{sub_dir}/{path.stem}", plant(json.loads(path.read_text(encoding="utf-8")))))
+            seeds.append((f"{sub_dir}/{path.stem}", plant(json.loads(path.read_text(encoding="utf-8")), len(seeds) % 4)))
     return seeds
 
 
@@ -261,7 +306,7 @@ def synth_plan(rng):
     doc = {"format_version": "1.2", "errored": False, "complete": True, "resource_changes": changes}
     if rng.random() < 0.15:
         del doc["resource_changes"]
-    return plant(doc)
+    return plant(doc, rng.randrange(3))
 
 
 # ---------------------------------------------------------------------------
@@ -414,7 +459,25 @@ def m_huge(doc, rng):
         item[field] = rng.choice(["x" * 4097, "x" * 70000, "é" * 5000, "🙂" * 4097])
 
 
-MUTATIONS = [m_delete, m_replace, m_wrap, m_add_key, m_top, m_entry_field, m_entry_field, m_dup_entry, m_shuffle,
+def m_state(doc, rng):
+    """Mutate output_changes / resource_drift (the sections state_only_plans = "refuse" looks at)."""
+    if not isinstance(doc, dict):
+        return
+    which = rng.choice(["output_changes", "resource_drift"])
+    r = rng.random()
+    if r < 0.2:
+        doc.pop(which, None)
+    elif which == "output_changes":
+        doc[which] = rng.choice([
+            {}, {"o": {"actions": ["no-op"]}}, {"o": {"actions": ["update"]}}, {"o": {"actions": ["create"]}},
+            {"o": {"actions": ["no-op"]}, "p": {"actions": ["delete"]}}, {"o": {}}, {"o": None}, {"o": {"actions": "no-op"}},
+            {"o": {"actions": []}}, None, [], "x", 0, {"o": {"actions": ["no-op", "update"]}}, {"o": {"actions": ["read"]}},
+        ])
+    else:
+        doc[which] = rng.choice([[], [{"address": "a.b"}], [None], None, {}, "x", 0, [{}]])
+
+
+MUTATIONS = [m_state, m_state, m_delete, m_replace, m_wrap, m_add_key, m_top, m_entry_field, m_entry_field, m_dup_entry, m_shuffle,
              m_drop_entry, m_huge]
 
 
@@ -580,3 +643,19 @@ def test_wild_oracle_semantics():
 def test_generator_is_deterministic():
     assert gen_case(123) == gen_case(123)
     assert gen_case(123) != gen_case(124)
+
+
+def test_oracle_state_only_rule_on_real_fixtures():
+    refuse = CONFIGS["refuse-delete-only"]
+    allow = CONFIGS["allow-explicit"]
+    expect_refused = {("outputs", "output_added_only"), ("modes", "refresh_only_output_drift"),
+                      ("moved", "moved_only"), ("moved", "moved_into_module")}
+    cases = [("outputs", "output_unchanged"), ("outputs", "output_changes_with_resource"),
+             ("outputs", "output_added_only"), ("modes", "refresh_only"), ("modes", "refresh_only_output_drift"),
+             ("moved", "moved_only"), ("moved", "moved_update"), ("moved", "moved_into_module")]
+    for directory, name in cases:
+        raw = (FIXTURES / directory / "terraform" / f"{name}.json").read_bytes()
+        assert oracle(raw, allow) == 0, name
+        assert oracle(raw, refuse) == (2 if (directory, name) in expect_refused else 0), name
+    drift = (FIXTURES / "handmade" / "resource_drift.json").read_bytes()
+    assert oracle(drift, allow) == 0 and oracle(drift, refuse) == 2

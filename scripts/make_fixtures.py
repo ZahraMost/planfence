@@ -128,6 +128,17 @@ PRODUCER_CHANGED: Files = {
 }
 
 
+def named(name: str, value: str = "a") -> str:
+    return f'resource "terraform_data" "{name}" {{\n  input = "{value}"\n}}\n'
+
+
+def moved(src: str, dst: str) -> str:
+    return f"\nmoved {{\n  from = {src}\n  to   = {dst}\n}}\n"
+
+
+MODULE_THING: Files = {"modules/m/main.tf": named("thing")}
+
+
 @dataclass
 class Scenario:
     planned: Files
@@ -180,6 +191,22 @@ SCENARIOS: dict[str, Scenario] = {
         producer=PRODUCER, producer_update=PRODUCER_CHANGED,
         baseline={"main.tf": REMOTE_CONSUMER}, planned={"main.tf": REMOTE_CONSUMER},
         plan_args=("-refresh-only",), default=False,
+    ),
+    # moved blocks (not in the default set; stored in tests/fixtures/moved/<tool>/)
+    "moved_only": Scenario(
+        baseline={"main.tf": named("old")},
+        planned={"main.tf": named("new") + moved("terraform_data.old", "terraform_data.new")},
+        default=False,
+    ),
+    "moved_update": Scenario(
+        baseline={"main.tf": named("old", "a")},
+        planned={"main.tf": named("new", "b") + moved("terraform_data.old", "terraform_data.new")},
+        default=False,
+    ),
+    "moved_into_module": Scenario(
+        baseline={"main.tf": named("thing")}, extra=MODULE_THING, default=False,
+        planned={"main.tf": 'module "m" {\n  source = "./modules/m"\n}\n'
+                 + moved("terraform_data.thing", "module.m.terraform_data.thing")},
     ),
     "two_exclude": Scenario(  # Terraform 1.17.2 has no -exclude; OpenTofu 1.13.9 does
         baseline={"main.tf": two("1")}, planned={"main.tf": two("2")},

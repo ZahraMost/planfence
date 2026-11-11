@@ -1,0 +1,1 @@
+"""Rule implementations (skeleton)."""

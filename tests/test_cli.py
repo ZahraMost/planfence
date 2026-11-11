@@ -214,10 +214,8 @@ def test_config_unknown_key_exit_2(capsys, tmp_path):
 
 def test_argument_errors_exit_2(capsys, cfg):
     for argv in ([], [str(fixture_path("update")), "--format", "xml"], [str(fixture_path("update")), "--bogus"]):
-        with pytest.raises(SystemExit) as ei:
-            cli.main(argv)
-        assert ei.value.code == 2
-        capsys.readouterr()
+        assert cli.main(argv) == 2
+        assert "usage" in capsys.readouterr().err
 
 
 def test_unexpected_crash_exit_2_never_ok(capsys, cfg, monkeypatch):

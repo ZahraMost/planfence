@@ -14,7 +14,7 @@ dependencies = []
 dev = ["pytest"]
 
 [project.scripts]
-planguard = "planguard.cli:main"
+planguard = "planguard.__main__:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]

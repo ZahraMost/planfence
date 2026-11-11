@@ -44,7 +44,7 @@ Options: `--config PATH` (default `./planguard.toml`; a missing file is an error
 |---|---|
 | 0 | plan parsed and every enabled rule passed |
 | 1 | at least one rule violated |
-| 2 | anything else: unreadable or invalid plan, unknown `format_version`, errored or incomplete plan, bad config, bad arguments, crash |
+| 2 | anything else: unreadable or invalid plan, unknown `format_version`, errored or incomplete plan, bad config, bad arguments, a crash, or failure to write the output (closed pipe, full disk) |
 
 ## Rules (v0.1)
 

@@ -12,9 +12,8 @@ import pytest
 
 from planguard import __main__ as entry
 from planguard import cli
-from tests.conftest import fixture_path, make_plan
+from tests.conftest import SRC, fixture_path, make_plan
 
-SRC = Path(__file__).resolve().parent.parent / "src"
 
 CFG = 'enabled_rules = ["no-delete"]\n'
 

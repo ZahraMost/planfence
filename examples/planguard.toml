@@ -1,0 +1,24 @@
+# Example contract for planguard. Copy to your repo and adjust.
+# Any unknown key makes planguard exit 2.
+
+enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
+
+[scope]
+# Only these addresses may change. `*` matches any characters (including dots
+# and quotes), `?` matches one character, everything else (including `[`) is literal.
+allow = [
+  "module.app.*",
+  "aws_s3_bucket.logs",
+  'aws_instance.web["blue"]',
+]
+
+[stateful]
+# Resource TYPES whose delete / replace / forget is reported as `critical`.
+# Matched exactly. planguard ships no default list: you decide what is stateful.
+types = ["aws_db_instance", "aws_s3_bucket", "aws_ebs_volume"]
+
+[budget]
+max_changes = 10
+
+[budget.max_creates_per_type]
+aws_instance = 2

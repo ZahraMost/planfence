@@ -27,3 +27,45 @@ def test_example_workflow_loads_contract_from_base_branch():
     text = (ROOT / "examples" / "github-actions" / "planguard-example.yml").read_text(encoding="utf-8")
     assert "base_ref" in text and "git show" in text
     assert "--config" in text and "--config planguard.toml" not in text
+
+
+# ---- OpenTofu / plan_source documentation ------------------------------------
+
+OPENTOFU_NEEDLES = [
+    "plan_source",
+    "OpenTofu 1.13.9",
+    "Terraform 1.17.2",
+    "16 scenarios",
+    "no `complete`",
+    "`applyable`",
+    "-target",
+    "-exclude",
+    "tofu plan",
+    "cannot be recognised",
+]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_opentofu_documented(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for needle in OPENTOFU_NEEDLES:
+        assert needle in text, f"{name}: missing {needle!r}"
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_not_verified_list_no_longer_claims_opentofu_is_unverified(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    assert "OpenTofu: `format_version` and action lists are NOT verified" not in text
+    assert "**OpenTofu has not been verified.**" not in text
+    assert "OpenTofu's format_version is NOT verified yet" not in text
+    # what OpenTofu could not produce stays listed
+    for needle in ("action_invocations", "deferred_changes", "deposed", "moved"):
+        assert needle in text
+
+
+def test_examples_mention_plan_source():
+    for rel in ("examples/planguard.toml", "examples/github-actions/planguard-example.yml"):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        assert "plan_source" in text and "opentofu" in text, rel
+    wf = (ROOT / "examples/github-actions/planguard-example.yml").read_text(encoding="utf-8")
+    assert "-target" in wf and "-exclude" in wf

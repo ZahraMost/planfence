@@ -3,6 +3,11 @@
 
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
 
+# OpenTofu users: uncomment. OpenTofu's plan JSON has no `complete`/`applyable`, so the
+# default strict ("terraform") mode refuses it. Set this in the PROTECTED contract, and
+# never plan with -target / -exclude (OpenTofu partial plans cannot be recognised).
+# plan_source = "opentofu"
+
 [scope]
 # Only these addresses may change. `*` matches any characters (including dots
 # and quotes), `?` matches one character, everything else (including `[`) is literal.

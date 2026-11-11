@@ -158,3 +158,33 @@ def test_documented_mutant_count_matches_the_script():
         text = (ROOT / name).read_text(encoding="utf-8")
         counts = [int(n) for n in re.findall(r"(\d+) (?:small )?source mutations", text)]
         assert counts == [actual], f"{name}: documented {counts}, script has {actual}"
+
+
+# ---- moves (previous_address) -------------------------------------------------------------------
+
+MOVE_NEEDLES = [
+    "`previous_address`",
+    "moved_update",
+    "bypass",
+    "moved-from=",
+    "treats every move as a change",
+    "both its address and its `previous_address`",
+    "a pure move is not counted",
+    "judged on its own",
+    "4096",
+]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_moves_documented(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    for needle in MOVE_NEEDLES:
+        assert needle in text, f"{name}: missing {needle!r}"
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_moved_blocks_no_longer_listed_as_unverified(name):
+    text = (ROOT / name).read_text(encoding="utf-8")
+    assert "`moved` blocks (planguard judges only" not in text
+    assert "`moved` blocks: not verified" not in text
+    assert "ignores `previous_address`" not in text

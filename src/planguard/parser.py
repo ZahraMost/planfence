@@ -45,6 +45,7 @@ class Change:
     type: str
     actions: tuple[str, ...]
     deposed: str | None = None
+    previous_address: str | None = None  # set only for moves (`moved` blocks); never equal to address
 
     @property
     def is_change(self) -> bool:
@@ -60,6 +61,11 @@ class Change:
         return "delete" in self.actions and "create" in self.actions
 
     @property
+    def is_move(self) -> bool:
+        """The resource lives at `address` now but was at `previous_address` (a `moved` block)."""
+        return self.previous_address is not None
+
+    @property
     def is_forget(self) -> bool:
         return self.actions == ("forget",)
 
@@ -73,8 +79,8 @@ class Change:
         return ",".join(self.actions)
 
     @property
-    def sort_key(self) -> tuple[str, str]:
-        return (self.address, self.deposed or "")
+    def sort_key(self) -> tuple[str, str, str]:
+        return (self.address, self.deposed or "", self.previous_address or "")
 
 
 @dataclass(frozen=True)
@@ -129,7 +135,15 @@ def _parse_change(index: int, item: object) -> Change:
         if not _is_nonempty_str(deposed):
             raise PlanError(f"{where}: 'deposed' present but not a non-empty string")
         _check_length(where, "deposed", deposed)
-    return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed)
+    previous = None
+    if "previous_address" in item:
+        raw_previous = item["previous_address"]
+        if not _is_nonempty_str(raw_previous):
+            raise PlanError(f"{where}: 'previous_address' present but not a non-empty string")
+        _check_length(where, "previous_address", raw_previous)
+        if raw_previous != address:  # equal addresses are not a move
+            previous = raw_previous
+    return Change(address=address, type=rtype, actions=tuple(actions), deposed=deposed, previous_address=previous)
 
 
 def parse_plan(data: object, plan_source: str = "terraform") -> Plan:

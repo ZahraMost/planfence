@@ -153,7 +153,13 @@ def oracle_entries(doc, source="terraform"):
             if not _good_str(item["deposed"]):
                 return None
             deposed = item["deposed"]
-        out.append((item["address"], item["type"], actions, deposed))
+        previous = None
+        if "previous_address" in item:
+            if not _good_str(item["previous_address"]):
+                return None
+            if item["previous_address"] != item["address"]:  # equal addresses are not a move
+                previous = item["previous_address"]
+        out.append((item["address"], item["type"], actions, deposed, previous))
     return out
 
 
@@ -166,7 +172,7 @@ def oracle_violations(entries, cfg):
     rules = cfg["rules"]
     changed = [e for e in entries if e[2] not in (["no-op"], ["read"])]
     found = []
-    for addr, typ, acts, _dep in entries:
+    for addr, typ, acts, _dep, _prev in entries:
         if "no-delete" in rules and acts == ["delete"]:
             found.append("no-delete")
         if "no-replace" in rules and "delete" in acts and "create" in acts:
@@ -175,8 +181,14 @@ def oracle_violations(entries, cfg):
             if acts == ["delete"] or acts == ["forget"] or ("delete" in acts and "create" in acts):
                 found.append("stateful")
     if "scope" in rules:
-        for addr, _t, _a, _d in changed:
-            if not any(wild(p, addr) for p in cfg["allow"]):
+        # every change AND every move (even a no-op one); a move needs BOTH addresses allowed
+        for addr, _t, acts, _d, prev in entries:
+            if acts in (["no-op"], ["read"]) and prev is None:
+                continue
+            allowed = any(wild(p, addr) for p in cfg["allow"])
+            if prev is not None:
+                allowed = allowed and any(wild(p, prev) for p in cfg["allow"])
+            if not allowed:
                 found.append("scope")
     if "budget" in rules:
         if cfg.get("max_changes") is not None and len(changed) > cfg["max_changes"]:
@@ -218,7 +230,8 @@ def plant(doc):
 
 def _load_seeds():
     seeds = []
-    for sub_dir in ("real", "handmade", "opentofu", "partial/terraform", "partial/opentofu"):
+    for sub_dir in ("real", "handmade", "opentofu", "partial/terraform", "partial/opentofu",
+                    "moved/terraform", "moved/opentofu"):
         for path in sorted((FIXTURES / sub_dir).glob("*.json")):
             seeds.append((f"{sub_dir}/{path.stem}", plant(json.loads(path.read_text(encoding="utf-8")))))
     return seeds
@@ -261,7 +274,8 @@ NASTY = [
 ]
 TOP_KEYS = ["format_version", "errored", "complete", "resource_changes", "action_invocations", "deferred_changes",
             "applyable", "prior_state", "output_changes", "resource_drift", "configuration", "timestamp"]
-ITEM_KEYS = ["address", "type", "change", "deposed", "mode", "name", "index", "action_reason", "module_address"]
+ITEM_KEYS = ["address", "type", "change", "deposed", "mode", "name", "index", "action_reason", "module_address",
+             "previous_address"]
 CHANGE_KEYS = ["actions", "importing", "before", "after", "after_sensitive", "replace_paths"]
 
 
@@ -349,11 +363,15 @@ def m_entry_field(doc, rng):
     item = pick_entry(doc, rng)
     if item is None:
         return
-    which = rng.choice(["address", "type", "deposed", "actions", "importing", "actions", "address", "type"])
+    which = rng.choice(["address", "type", "deposed", "actions", "importing", "actions", "address", "type",
+                        "previous", "previous", "previous"])
     if which == "address":
         item["address"] = rng.choice(ADDRESS_POOL + NASTY)
     elif which == "type":
         item["type"] = rng.choice(TYPE_POOL + NASTY + [5, None])
+    elif which == "previous":
+        item["previous_address"] = rng.choice(ADDRESS_POOL + [item.get("address"), "", None, 5, "x" * 4097, "x" * 4096,
+                                                              "terraform_data.old", "terraform_data.new", "module.child.x"])
     elif which == "deposed":
         item["deposed"] = rng.choice(["0001", "abcd", "", None, 5, "x" * 4097])
     elif which == "actions":

@@ -731,3 +731,99 @@ def test_checkov_row_attributes_the_policy_count_to_its_readme():
 def test_terraguard_row_mentions_the_previous_address_of_moved_resources():
     row = related_row("Terraguard")
     assert "including the previous address of moved resources" in row
+
+
+# ---- README accuracy round: Markdown structure guard --------------------------------------------------------------------
+
+def split_table_row(row):
+    """Number of column separators in a table row: unescaped pipes outside inline code."""
+    stripped = re.sub(r"`[^`]*`", "", row)  # pipes inside inline code are text
+    stripped = stripped.replace("\\|", "")  # escaped pipes are text
+    return stripped.count("|")
+
+
+def markdown_structure_problems(text):
+    """Simple structural checks: closed fences, well-formed tables, headings written as '# text'."""
+    problems, lines = [], text.splitlines()
+    fences = [n for n, line in enumerate(lines, 1) if line.lstrip().startswith("```")]
+    if len(fences) % 2:
+        problems.append(f"odd number of ``` fences ({len(fences)}): one is not closed (fences at lines {fences})")
+    in_fence, table = False, []
+
+    def flush():
+        if not table:
+            return
+        first = table[0][0]
+        if len(table) < 2:
+            problems.append(f"line {first}: a table needs a header and a separator row")
+        else:
+            header_cols = split_table_row(table[0][1])
+            cells = [c.strip() for c in table[1][1].strip().strip("|").split("|")]
+            if not all(re.fullmatch(r":?-+:?", c) for c in cells):
+                problems.append(f"line {table[1][0]}: the second row of the table must be a separator row")
+            for n, row in table:
+                if split_table_row(row) != header_cols:
+                    problems.append(f"line {n}: {split_table_row(row)} column separators, the header has {header_cols}")
+        table.clear()
+
+    for n, line in enumerate(lines, 1):
+        if line.lstrip().startswith("```"):
+            flush()
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith("#") and not re.match(r"#{1,6} \S", line):
+            problems.append(f"line {n}: heading must start with '#' followed by a space: {line[:40]!r}")
+        if line.lstrip().startswith("|"):
+            table.append((n, line))
+        else:
+            flush()
+    flush()
+    return problems
+
+
+GOOD_MARKDOWN = """# Title
+
+| a | b |
+|---|:-:|
+| `x|y` | two \\| cells |
+
+```sh
+# a comment that looks like a heading, and | pipes
+```
+
+## Heading
+"""
+
+
+def test_markdown_guard_accepts_good_markdown_including_pipes_in_code_and_fences():
+    assert markdown_structure_problems(GOOD_MARKDOWN) == []
+
+
+@pytest.mark.parametrize("bad, fragment", [
+    ("```sh\nno closing fence\n", "not closed"),
+    ("| a | b |\n| 1 | 2 |\n", "separator row"),
+    ("| a | b |\n|---|---|\n| 1 | 2 | 3 |\n", "column separators"),
+    ("| a | b |\n|---|---|\n| only one |\n", "column separators"),
+    ("|a|\n", "header and a separator"),
+    ("##Heading without a space\n", "followed by a space"),
+    ("#\n", "followed by a space"),
+])
+def test_markdown_guard_detects_each_kind_of_breakage(bad, fragment):
+    problems = markdown_structure_problems(bad)
+    assert problems and any(fragment in p for p in problems), problems
+
+
+def test_readme_markdown_structure_is_sound():
+    assert markdown_structure_problems(readme_text()) == []
+
+
+def test_the_guard_catches_corruption_of_the_real_readme():
+    text = readme_text()
+    first_fence = text.index("```")
+    assert markdown_structure_problems(text[:first_fence] + text[first_fence + 3:]), "an unclosed fence must be caught"
+    row = next(line for line in text.splitlines() if line.startswith("| `scope` |"))
+    assert markdown_structure_problems(text.replace(row, row + " extra |")), "an extra column must be caught"
+    assert markdown_structure_problems(text.replace("## Rules (v0.1)", "##Rules (v0.1)")), "a bad heading must be caught"
+    assert markdown_structure_problems(text.replace("|---|---|---|", "| a | b | c |", 1)), "a missing separator must be caught"

@@ -1,4 +1,4 @@
-> **Status: pre-release (0.0.x), experimental.** planfence is a narrow guardrail, not a security audit:
+> **Status: early release (0.1.x), experimental.** planfence is a narrow guardrail, not a security audit:
 > a pass means 'this plan stays inside the contract you wrote', nothing more
 > (see [What planfence does NOT claim](#what-planfence-does-not-claim)).
 

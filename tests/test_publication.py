@@ -94,7 +94,8 @@ def test_readme_starts_with_the_status_block_before_any_heading():
     first_heading = next(i for i, ln in enumerate(lines) if ln.startswith("#"))
     block = " ".join(ln.lstrip("> ").strip() for ln in lines[:first_heading] if ln.strip())
     assert lines[0].startswith(">"), "the status block is the very first thing in the README"
-    assert "Status: pre-release (0.0.x), experimental." in block
+    assert "Status: early release (0.1.x), experimental." in block
+    assert "pre-release" not in block and "0.0.x" not in block
     assert "narrow guardrail, not a security audit" in block
     assert "'this plan stays inside the contract you wrote', nothing more" in block
     assert "(see [What planfence does NOT claim](#what-planfence-does-not-claim))" in block

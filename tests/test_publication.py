@@ -66,12 +66,17 @@ def test_readme_codeowners_block_matches_the_example_file():
         assert " ".join(line.split()) in " ".join(readme.split()), line
 
 
-def test_example_workflow_install_url_and_the_missing_tag_comment():
+def test_example_workflow_install_url_and_the_pinning_comment():
     text = EXAMPLE.read_text(encoding="utf-8")
-    assert 'pip install "git+https://github.com/ZahraMost/planfence.git@v0.1.0"' in text
-    idx = text.index("git+https://github.com/ZahraMost/planfence.git@v0.1.0")
-    comment_before = text[:idx].splitlines()[-6:]
-    assert any("does not exist yet" in ln and ln.strip().startswith("#") for ln in comment_before), comment_before
+    url = "git+https://github.com/ZahraMost/planfence.git@v0.1.0"
+    assert f'pip install "{url}"' in text  # the install URL keeps pointing at the release tag
+    comment = " ".join(ln.strip().lstrip("#").strip() for ln in text[:text.index(url)].splitlines()[-9:]
+                       if ln.strip().startswith("#"))
+    assert "release tag or a commit" in comment
+    assert "trust boundary" in comment
+    assert "A v0.1.0 tag is created when the release is published" in comment
+    # the pre-release wording is gone
+    assert "does not exist yet" not in text and "nothing has been released" not in text
 
 
 # ---- 2. identical action versions ------------------------------------------------------------------------

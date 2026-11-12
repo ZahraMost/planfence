@@ -43,9 +43,9 @@ jobs:
           terraform show -json tfplan > plan.json
           sha256sum tfplan > tfplan.sha256
 
-      # Pin planfence to a tag (part of the trust boundary). NOTE: the tag v0.1.0 does not exist yet;
-      # nothing has been released or tagged. Use the tag or commit you trust once there is one.
-      # planfence has no runtime dependencies.
+      # Pin planfence to a release tag or a commit that you trust. The planfence version is part of the
+      # trust boundary: whoever can change what is installed here can change what is checked.
+      # A v0.1.0 tag is created when the release is published. planfence has no runtime dependencies.
       - name: Install planfence
         run: python -m pip install "git+https://github.com/ZahraMost/planfence.git@v0.1.0"
 

@@ -235,3 +235,31 @@ def test_quality_gates_documented():
         text = (ROOT / name).read_text(encoding="utf-8")
         assert "ruff check src" in text and "mypy" in text, name
         assert "dev" in text.lower()
+
+
+# ---- no wall-clock assertions ------------------------------------------------------------------------------------
+
+TIMING_NEEDLES = ["no wall-clock", "operation count", "scaling ratio", "CPU time", "hang_guard", "tests/timing.py"]
+
+
+def test_timing_policy_documented():
+    for name in ("README.md", "CLAUDE.md"):
+        text = (ROOT / name).read_text(encoding="utf-8")
+        for needle in TIMING_NEEDLES:
+            assert needle in text, f"{name}: missing {needle!r}"
+
+
+def test_no_test_asserts_on_measured_wall_clock_time():
+    """Slow CI runners must not fail tests. Measured times are only allowed in tests/timing.py (CPU-time scaling
+    ratios with retries, and the hang watchdog)."""
+    import re
+
+    clocks = re.compile(r"perf_counter|time\.time\(|monotonic|process_time|thread_time")
+    offenders = []
+    for path in sorted((ROOT / "tests").glob("*.py")):
+        if path.name in ("timing.py", "test_docs.py"):
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if clocks.search(line):
+                offenders.append(f"{path.name}:{n}: {line.strip()}")
+    assert offenders == []

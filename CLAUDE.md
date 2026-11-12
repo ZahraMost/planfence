@@ -291,11 +291,20 @@ or any network use other than `pip install` and Terraform's own init.
   independent oracle written inside the test (exit code must equal the oracle's;
   no planted secret in output; no hidden "internal error"). Env PLANFENCE_FUZZ_N
   sets the iteration count (default 20000). `gen_case(i)` replays iteration i.
-- scripts/mutation_check.py: 122 source mutations run against temp copies of src/ (never
+- scripts/mutation_check.py: 126 source mutations run against temp copies of src/ (never
   edits src/). Every mutant must be KILLED or listed in its EQUIVALENT dict with a
   reason; add a test for any survivor. Run it after changing rules/parser/config/cli.
   Also run it with `--pytest-args "tests --ignore=tests/test_fuzz.py"`: every mutant must
   be killed by the deterministic tests alone, not by luck in the fuzzer.
+- Timing policy: no wall-clock assertions in tests (slow CI runners must not fail them; a
+  30 s bound once failed on a 7x slower runner and, worse, missed real regressions). Instead:
+  operation counts (how often glob_match / the matcher constructor / the sort key run) and the
+  scaling ratio (4x the input must take < 9x the CPU time; linear ~4, quadratic ~16; CPU time, not
+  wall time, with 3 attempts), all in tests/test_scaling.py and tests/test_scope_performance.py. The only
+  time limit left is `hang_guard` (tests/timing.py): a 15-minute SIGALRM watchdog against endless
+  hangs, never a speed test. tests/timing.py is the only test module allowed to read a clock
+  (a doc test enforces it). Mutants M122-M125 are correct-but-slow variants that these tests must kill.
+  CI/subprocess timeouts (build 600 s, install 300 s, mutation 300 s, jobs 10 min) are hang guards.
 - Tests honour PLANFENCE_SRC (see tests/conftest.py SRC) so subprocess tests can
   run against another copy of src/.
 - When unsure about Terraform behaviour, say so and ask me to verify with a

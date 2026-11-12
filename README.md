@@ -441,10 +441,13 @@ python3.13 -m venv .venv
 .venv/bin/ruff check src      # configured in pyproject.toml
 .venv/bin/mypy                # strict, files = ["src"]
 
-# mutation testing: applies 122 small source mutations to temp copies of src/ and checks
+# mutation testing: applies 126 small source mutations to temp copies of src/ and checks
 # that the tests notice each one (never edits src/ itself; about 1-2 minutes)
 .venv/bin/python scripts/mutation_check.py
 
+# there are no wall-clock assertions in the tests: speed is checked by operation counts and by the
+# scaling ratio of CPU time (tests/timing.py, tests/test_scaling.py), plus a 15-minute `hang_guard`
+# watchdog against endless hangs, so slow CI runners cannot fail them
 # the packaging test builds the wheel and sdist, installs the wheel into a fresh venv and
 # uses it (needs `pip install build` and network access; skipped with a reason otherwise)
 

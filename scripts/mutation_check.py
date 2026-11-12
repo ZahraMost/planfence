@@ -279,6 +279,20 @@ MUTATIONS: list[Mutation] = [
       "    except ImportError:  # PackageNotFoundError or any broken-metadata problem",
       "--version only falls back when the metadata is missing, not when it is broken"),
     M("M121", "cli.py", 'version=f"planfence {_version()}"', "version=_version()", "--version output lacks the program name"),
+    # -- correct but SLOW: quadratic or needless work (the results stay identical)
+    M("M122", "rules.py", "return any(glob_match(p, text) for p in self._generic)",
+      "return any(glob_match(p, text) for p in self._generic for _ in self._generic)",
+      "SLOW: generic patterns are matched len(generic) times each (quadratic in the pattern count)"),
+    M("M123", "rules.py", "if (c.is_change or c.is_move) and not _scope_ok(matcher, c)",
+      "if (c.is_change or c.is_move) and not _scope_ok(AddressMatcher(allow), c)",
+      "SLOW: the matcher is rebuilt for every change"),
+    M("M124", "parser.py", "changes.sort(key=lambda c: c.sort_key)",
+      "for i in range(len(changes)):\n        for j in range(len(changes) - 1 - i):\n"
+      "            if changes[j].sort_key > changes[j + 1].sort_key:\n"
+      "                changes[j], changes[j + 1] = changes[j + 1], changes[j]",
+      "SLOW: the parser sorts with a bubble sort (quadratic in the plan size)"),
+    M("M125", "rules.py", "if text in self._exact:", "if any(text == e for e in self._exact):",
+      "SLOW: exact patterns are scanned linearly instead of a set lookup"),
 ]
 
 # Mutants that cannot change observable behaviour. id -> reason.
@@ -403,6 +417,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{mid:<5} {desc:<{w1}}  {status:<10} {detail}")
     count = lambda s: sum(1 for r in rows if r[2] == s)  # noqa: E731
     killed, surv, equiv, invalid = count("KILLED"), count("SURVIVED"), count("EQUIVALENT"), count("INVALID")
+    timed_out = [r[0] for r in rows if r[2] == "KILLED" and r[3].startswith("timeout")]
+    if timed_out:
+        print(f"\nNOTE: {', '.join(timed_out)} counted as killed only because the test run timed out "
+              f"(--timeout {args.timeout}s); that is not a test failure, check them by hand.")
     scored = killed + surv
     print(f"\n{len(rows)} mutants: {killed} killed, {surv} survived, {equiv} equivalent (explained), {invalid} invalid"
           + (f"; mutation score {100 * killed / scored:.0f}% (excluding equivalents)" if scored else ""))

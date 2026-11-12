@@ -1,4 +1,3 @@
-import time
 
 import pytest
 
@@ -55,10 +54,10 @@ def test_glob_match(pattern, text, expected):
     assert glob_match(pattern, text) is expected
 
 
-def test_glob_match_is_not_quadratic_explosive():
-    start = time.perf_counter()
+def test_glob_match_many_stars_still_gives_the_right_answer_on_long_text():
+    # Speed is checked without a wall-clock bound in tests/test_scaling.py (scaling ratio).
     assert glob_match("*a" * 12 + "b", "a" * 20000) is False
-    assert time.perf_counter() - start < 2.0
+    assert glob_match("*a" * 12 + "b", "a" * 20000 + "b") is True
 
 
 # ---- scope -----------------------------------------------------------------

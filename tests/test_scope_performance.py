@@ -1,16 +1,17 @@
-"""Scope fast paths: identical semantics to glob_match, and bounded work for large inputs."""
+"""Scope fast paths: identical semantics to glob_match, and bounded work for large inputs.
+
+Work is bounded by OPERATION COUNTS (how often glob_match runs), not by seconds; scaling with the input
+size is checked in tests/test_scaling.py. Wall-clock bounds are flaky on slow runners and miss regressions.
+"""
 
 import random
 import re
-import time
 
 import pytest
 
 from planfence.config import ConfigError, MAX_ALLOW_PATTERNS, MAX_PATTERN_LENGTH, parse_config
 from planfence.parser import Change
 from planfence.rules import AddressMatcher, glob_match, scope
-
-BOUND = 5.0  # seconds; generous, the real figures are milliseconds
 
 
 def naive(patterns, text):
@@ -70,32 +71,36 @@ def test_scope_results_unchanged_with_fast_paths():
     assert [v.address for v in vs] == ["other"]
 
 
-# ---- timing (generous bounds) ------------------------------------------------
+# ---- bounded work, counted (no wall-clock bounds) ----------------------------------
 
 def make_changes(n):
     return [Change(f"module.m{i % 50}.aws_instance.r[{i}]", "aws_instance", ("update",)) for i in range(n)]
 
 
-def timed(fn):
-    start = time.perf_counter()
-    result = fn()
-    return result, time.perf_counter() - start
+def spy_glob_calls(monkeypatch):
+    """Record every pattern that reaches the real glob_match."""
+    calls = []
+    real = glob_match
+    monkeypatch.setattr("planfence.rules.glob_match", lambda p, t: calls.append(p) or real(p, t))
+    return calls
 
 
-def test_many_exact_patterns_many_changes():
+def test_many_exact_patterns_many_changes(monkeypatch):
+    calls = spy_glob_calls(monkeypatch)
     changes = make_changes(20000)
     allow = [f"nothing.here.{i}" for i in range(499)] + [c.address for c in changes[:1]]
-    vs, took = timed(lambda: scope(changes, allow))
+    vs = scope(changes, allow)
     assert len(vs) == 19999
-    assert took < BOUND
+    assert calls == []  # exact patterns are a set lookup: glob_match never runs
 
 
-def test_many_prefix_patterns_many_changes():
+def test_many_prefix_patterns_many_changes(monkeypatch):
+    calls = spy_glob_calls(monkeypatch)
     changes = make_changes(20000)
     allow = [f"module.none{i}.*" for i in range(499)] + ["module.m7.*"]
-    vs, took = timed(lambda: scope(changes, allow))
+    vs = scope(changes, allow)
     assert len(vs) == 20000 - sum(1 for c in changes if c.address.startswith("module.m7."))
-    assert took < BOUND
+    assert calls == []  # prefix-only patterns are one startswith: glob_match never runs
 
 
 def rx_matches(pattern, text):
@@ -109,9 +114,7 @@ def expected_violations(changes, allow):
 
 
 def test_prefix_patterns_are_not_evaluated_one_by_one_in_python(monkeypatch):
-    calls = []
-    real = glob_match
-    monkeypatch.setattr("planfence.rules.glob_match", lambda p, t: calls.append(p) or real(p, t))
+    calls = spy_glob_calls(monkeypatch)
     changes = make_changes(50)
     allow = ["module.m1*", "exact", "p.*"]  # prefix, exact and prefix-only patterns
     violations = scope(changes, allow)
@@ -122,26 +125,33 @@ def test_prefix_patterns_are_not_evaluated_one_by_one_in_python(monkeypatch):
     assert len(violations) == 50 - 11  # module.m1 and module.m10 .. module.m19
 
 
-def test_generic_patterns_still_bounded_for_realistic_sizes():
+def test_generic_patterns_are_tried_at_most_once_each_per_address_and_only_until_one_matches(monkeypatch):
+    calls = spy_glob_calls(monkeypatch)
     changes = make_changes(2000)
-    allow = [f"module.m*.aws_instance.r[{i}0*" for i in range(20)] + ["*.r[1?]"]
-    vs, took = timed(lambda: scope(changes, allow))
-    assert took < BOUND
+    allow = [f"module.m*.aws_instance.r[{i}0*" for i in range(20)] + ["*.r[1?]"]  # 21 generic patterns
+    vs = scope(changes, allow)
     expected = expected_violations(changes, allow)
     assert sorted(v.address for v in vs) == expected  # exact set, computed independently
     assert all(v.rule == "scope" for v in vs)
-    # sanity: the patterns really allow some changes and reject others
-    assert 0 < len(expected) < len(changes)
-    assert len(expected) == 2000 - len(
-        [c for c in changes if any(rx_matches(p, c.address) for p in allow)]
-    )
+    assert 0 < len(expected) < len(changes)  # the patterns really allow some changes and reject others
+    # EXACT operation count: per address the patterns are tried in order until the first one matches
+    # (all of them if none does). Doing any of this twice, or for exact/prefix patterns, would change it.
+    expected_calls = 0
+    for c in changes:
+        for p in allow:
+            expected_calls += 1
+            if rx_matches(p, c.address):
+                break
+    assert len(calls) == expected_calls
+    assert 2000 < len(calls) <= 2000 * len(allow)
 
 
-def test_long_prefix_and_exact_patterns_at_the_limit():
+def test_long_prefix_patterns_at_the_limit_are_one_startswith_each(monkeypatch):
+    calls = spy_glob_calls(monkeypatch)
     pat = "p" * (MAX_PATTERN_LENGTH - 1) + "*"
     changes = [Change("p" * 600, "t", ("update",))]
-    vs, took = timed(lambda: scope(changes, [pat] * 500))
-    assert vs == [] and took < BOUND
+    assert scope(changes, [pat] * 500) == []
+    assert calls == []
 
 
 # ---- config limits -------------------------------------------------------------

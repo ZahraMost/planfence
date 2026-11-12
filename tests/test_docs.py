@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import re
+
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -380,3 +382,45 @@ def test_changelog_lists_the_related_tools_comparison_under_added():
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     added = text[text.index("### Added"):text.index("### Security")]
     assert "README: Related tools comparison" in added
+
+
+# ---- README accuracy round: Quick start sample ---------------------------------------------------------------------
+
+def readme_section_between(start_heading, level="##"):
+    text = readme_text()
+    start = text.index(f"\n{start_heading}\n")
+    end = text.find(f"\n{level} ", start + 1)
+    return text[start:end if end != -1 else None]
+
+
+def markdown_fences(section):
+    return re.findall(r"```(\w*)\n(.*?)```", section, re.S)
+
+
+def test_quick_start_sample_is_real_cli_output_on_a_named_fixture_and_config(capsys, tmp_path):
+    section = readme_section_between("## Quick start")
+    assert "real output" in section and "tests/fixtures/real/replace.json" in section
+    blocks = markdown_fences(section)
+    toml = [body for lang, body in blocks if lang == "toml"]
+    consoles = [body for lang, body in blocks if lang == "console"]
+    assert len(toml) == 1 and len(consoles) == 1, "one demo config and one sample output"
+    command, *output_lines = consoles[0].rstrip("\n").splitlines()
+    match = re.fullmatch(r"\$ planfence (\S+) --config (\S+)", command)
+    assert match, command
+    fixture, config_name = match.groups()
+    assert fixture == "tests/fixtures/real/replace.json"
+    assert config_name in section and config_name.endswith(".toml") and config_name != "planfence.toml"
+    config = tmp_path / config_name
+    config.write_text(toml[0], encoding="utf-8")
+    from planfence import cli
+
+    code = cli.main([str(ROOT / fixture), "--config", str(config)])
+    out = capsys.readouterr().out
+    assert out.splitlines() == output_lines, "the README sample must be exactly what the CLI prints"
+    assert code == 1
+
+
+def test_quick_start_sample_is_not_the_main_example():
+    section = readme_section_between("## Quick start")
+    assert "Real plan example" in section  # points to the main example (local_file, real providers)
+    assert "local_file" not in section

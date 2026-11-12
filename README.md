@@ -32,12 +32,25 @@ terraform show -json tfplan > plan.json
 planfence plan.json --config planfence.toml
 ```
 
+Sample output. This is real output of the CLI (a test reproduces it exactly) on the test fixture
+`tests/fixtures/real/replace.json`, a `terraform_data` resource whose `triggers_replace` changed, so it
+is replaced. The demo config, saved as `demo.toml`:
+
+```toml
+enabled_rules = ["no-replace", "stateful-protect"]
+
+[stateful]
+types = ["terraform_data"]
 ```
-$ planfence plan.json --config planfence.toml
+
+```console
+$ planfence tests/fixtures/real/replace.json --config demo.toml
 [error] no-replace terraform_data.example (terraform_data) delete,create
 [critical] stateful-protect terraform_data.example (terraform_data) delete,create
 planfence: FAIL - 2 violation(s)
 ```
+
+The main example, with real providers, is under "Real plan example" below.
 
 Options: `--config PATH` (default `./planfence.toml`; a missing file is an error),
 `--format text|json` (default `text`).

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "planfence"
-version = "0.0.1"
+version = "0.1.0"
 description = "Deterministic guardrail for Terraform/OpenTofu plan JSON."
 readme = "README.md"
 requires-python = ">=3.11"

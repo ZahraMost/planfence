@@ -2,9 +2,9 @@
 
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-11-12
 
-First release candidate. Not tagged; the package version is still `0.0.1`.
+First release.
 The project was formerly named planguard (renamed because that name collides with an existing PyPI project and its command); no alias is kept.
 
 ### Added

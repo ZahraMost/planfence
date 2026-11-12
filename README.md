@@ -143,10 +143,18 @@ How changes are counted:
 - A replacement counts as **one** change and **one** create for its type.
 - **Moves** (`moved` blocks) are described under "Moved resources" below: the `scope` rule treats every
   move as a change, but a pure move is not counted as a change for `budget`.
-- Plans containing things planfence cannot judge are **refused (exit 2)** rather than passed:
-  a non-empty top-level `action_invocations` (Terraform actions) or `deferred_changes`, and any
-  change with an `importing` object (an `import` block, even when the action is a no-op).
-  Absent or empty is fine.
+- **Exit 2 (refused, never judged halfway).** planfence exits 2 when a plan contains `change.importing`
+  (an `import` block, even when the action is a no-op), a non-empty top-level `action_invocations` or
+  `deferred_changes`, or an unknown or empty `actions` list; when the plan is errored (`errored: true`) or
+  incomplete (`complete` is not true); or when it has an unknown `format_version` (anything but `1.x`).
+  Absent or empty `action_invocations` / `deferred_changes` are fine. Input that cannot be parsed at all
+  (invalid JSON, missing or malformed required fields, over-long strings) also exits 2. About incomplete
+  plans: Terraform marks a plan made with `-target` as `complete: false`, which is refused; an OpenTofu
+  partial plan (`-target` / `-exclude`) cannot be detected, so it is not refused (see [OpenTofu](#opentofu)).
+- **`output_changes` and `resource_drift` are ignored, not refused, by default** (`state_only_plans = "allow"`):
+  a plan whose only effects are output changes, drift or pure moves passes if the rules pass. With
+  `state_only_plans = "refuse"` such plans exit 2, see
+  [Refusing state-only plans](#refusing-state-only-plans-state_only_plans).
 - An absent `resource_changes` key means "nothing planned" (Terraform omits it for empty plans),
   accepted only when `format_version` is known, `errored` is false and `complete` is true.
 

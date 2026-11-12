@@ -429,8 +429,9 @@ def test_quick_start_sample_is_not_the_main_example():
 # ---- README accuracy round: output_changes / resource_drift are DEFAULT behaviour ------------------------------------
 
 def doc_units(text):
-    """Split Markdown source into units: paragraphs, table rows, headings and list items. A list that follows a
-    sentence ending in ':' belongs to that sentence; fenced code blocks are skipped."""
+    """Split Markdown source into units: paragraphs, table rows, headings and list items. A list whose items are
+    lowercase FRAGMENTS of the sentence before it (that sentence ends in ':') belongs to that sentence; lists of
+    independent claims (capitalised, bold or code-first items) are split per item. Fenced code is skipped."""
     units, in_fence, current, attached, blank_seen = [], False, None, False, False
     for line in text.splitlines():
         stripped = line.strip()
@@ -447,15 +448,17 @@ def doc_units(text):
         is_item = re.match(r"\s*([-*]|\d+\.)\s", line) is not None
         if is_item:
             last = units[-1] if units else None
-            if attached:
+            body = re.sub(r"^([-*]|\d+\.)\s+", "", stripped)
+            fragment = body[:1].islower()
+            if attached and fragment:
                 last.append(stripped)
-            elif last and last[-1].endswith(":") and (blank_seen or current is last):
+            elif fragment and last and last[-1].endswith(":") and (blank_seen or current is last):
                 attached = True
                 last.append(stripped)
             else:
+                attached = False
                 current = [stripped]
                 units.append(current)
-                attached = False
             blank_seen = False
             continue
         if stripped.startswith(("|", "#")):
@@ -504,6 +507,13 @@ def test_doc_units_splits_list_items_rows_and_keeps_intro_lists_together():
     assert not any("code inside a fence" in unit for unit in units)
 
 
+def test_doc_units_splits_lists_of_independent_claims_after_a_label():
+    sample = "How changes are counted:\n\n- A **change** is something.\n- `read` is not a change.\n- **Bold** claim."
+    units = doc_units(sample)
+    assert units == ["How changes are counted:", "- A **change** is something.", "- `read` is not a change.",
+                     "- **Bold** claim."]
+
+
 def default_or_key_missing(text):
     """Units that mention output_changes / resource_drift without saying 'default' or naming state_only_plans."""
     return [unit for unit in doc_units(text)
@@ -514,7 +524,8 @@ def test_the_default_guard_detects_a_missing_qualifier():
     assert default_or_key_missing("- `output_changes` is ignored.\n- another item mentions nothing") != []
     assert default_or_key_missing("- `output_changes` is ignored by default.") == []
     assert default_or_key_missing("Some text:\n\n- `resource_drift` entry;\n- more;\n\n(state_only_plans)") != []
-    assert default_or_key_missing("Refuse with state_only_plans:\n\n- `resource_drift` entry;") == []
+    assert default_or_key_missing("Refuse with state_only_plans, when there is:\n\n- a non-empty `resource_drift`;") == []
+    assert default_or_key_missing("Counted:\n\n- `resource_drift` is not refused.") != []  # an independent claim
 
 
 @pytest.mark.parametrize("name", ["README.md", "CLAUDE.md", "SECURITY.md"])
@@ -581,3 +592,97 @@ def test_no_differently_worded_description_of_the_move_rule_remains(name):
     for unit in doc_units((ROOT / name).read_text(encoding="utf-8")):
         if "previous_address" in unit and "match the allowlist" in unit:
             assert BOTH_ADDRESSES in unit, f"{name}: {unit[:120]}"
+
+
+# ---- README accuracy round: the exact list of what causes exit 2 -----------------------------------------------------
+
+def exit_2_bullet():
+    section = readme_section_between("## Rules (v0.1)")
+    bullets = [u for u in doc_units(section) if u.startswith("- **Exit 2")]
+    assert len(bullets) == 1, "one bullet must list what causes exit 2"
+    return bullets[0]
+
+
+def test_old_vague_sentence_is_gone():
+    assert "Plans containing things planfence cannot judge" not in readme_text()
+
+
+def test_exit_2_bullet_lists_every_cause():
+    bullet = exit_2_bullet()
+    for cause in ("change.importing", "action_invocations", "deferred_changes", "unknown or empty `actions` list",
+                  "`errored: true`", "`complete` is not true", "unknown `format_version`"):
+        assert cause in bullet, cause
+    assert "invalid JSON" in bullet and "also exits 2" in bullet  # unparseable input is not silently skipped
+    assert "Absent or empty `action_invocations` / `deferred_changes` are fine" in bullet
+
+
+def test_opentofu_partial_plan_limitation_is_mentioned_where_it_is_true_only():
+    bullet = exit_2_bullet()
+    assert "`-target`" in bullet and "`complete: false`" in bullet  # Terraform: refused
+    assert "OpenTofu" in bullet and "cannot be detected" in bullet and "not refused" in bullet
+    # the other bullets of the rules section do not repeat the limitation
+    section = readme_section_between("## Rules (v0.1)")
+    others = [u for u in doc_units(section) if u.startswith("- ") and u != bullet and "partial" in u]
+    assert others == []
+
+
+def test_output_changes_and_resource_drift_are_ignored_by_default_is_said_separately():
+    section = readme_section_between("## Rules (v0.1)")
+    separate = [u for u in doc_units(section) if "output_changes" in u and "resource_drift" in u]
+    assert len(separate) == 1
+    text = separate[0]
+    assert text.startswith("- ") and text != exit_2_bullet()
+    assert "by default" in text and 'state_only_plans = "allow"' in text and "ignored" in text and "not refused" in text
+    assert "(#refusing-state-only-plans-state_only_plans)" in text
+
+
+def plan_with(**changes):
+    doc = {"format_version": "1.2", "errored": False, "complete": True,
+           "resource_changes": [{"address": "a.b", "type": "a", "change": {"actions": ["update"]}}]}
+    for key, value in changes.items():
+        doc[key] = value
+    return doc
+
+
+def run_cli_on(tmp_path, doc):
+    import json
+
+    from planfence import cli
+
+    plan = tmp_path / "plan.json"
+    plan.write_text(json.dumps(doc), encoding="utf-8")
+    cfg = tmp_path / "planfence.toml"
+    cfg.write_text('enabled_rules = ["no-delete"]\n', encoding="utf-8")
+    return cli.main([str(plan), "--config", str(cfg)])
+
+
+def with_change(**change):
+    doc = plan_with()
+    doc["resource_changes"][0]["change"].update(change)
+    return doc
+
+
+LISTED_CAUSES = {
+    "change.importing": with_change(importing={"id": "x"}),
+    "non-empty action_invocations": plan_with(action_invocations=[{"x": 1}]),
+    "non-empty deferred_changes": plan_with(deferred_changes=[{"x": 1}]),
+    "unknown actions list": with_change(actions=["destroy"]),
+    "empty actions list": with_change(actions=[]),
+    "errored plan": plan_with(errored=True),
+    "incomplete plan": plan_with(complete=False),
+    "unknown format_version": plan_with(format_version="2.0"),
+}
+
+
+@pytest.mark.parametrize("cause", sorted(LISTED_CAUSES))
+def test_every_listed_cause_really_exits_2(tmp_path, capsys, cause):
+    assert run_cli_on(tmp_path, LISTED_CAUSES[cause]) == 2
+    assert "OK" not in capsys.readouterr().out
+
+
+def test_what_the_readme_says_is_fine_or_ignored_really_is(tmp_path, capsys):
+    assert run_cli_on(tmp_path, plan_with(action_invocations=[], deferred_changes=[])) == 0  # absent or empty: fine
+    drift = plan_with(output_changes={"o": {"actions": ["delete"]}}, resource_drift=[{"address": "x"}])
+    drift["resource_changes"] = []
+    assert run_cli_on(tmp_path, drift) == 0  # ignored by default
+    capsys.readouterr()

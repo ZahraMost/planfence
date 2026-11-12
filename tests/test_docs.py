@@ -170,7 +170,7 @@ MOVE_NEEDLES = [
     "bypass",
     "moved-from=",
     "treats every move as a change",
-    "both its address and its `previous_address`",
+    "BOTH its address and its `previous_address`",
     "a pure move is not counted",
     "judged on its own",
     "4096",
@@ -548,3 +548,36 @@ def test_claude_md_and_security_say_default_where_they_mention_the_sections():
     assert len(nor) == 1 and "by default" in nor[0] and "v0.1, `output_changes`" not in nor[0]
     security = [u for u in doc_units((ROOT / "SECURITY.md").read_text(encoding="utf-8")) if "output_changes" in u]
     assert len(security) == 1 and "by default" in security[0] and 'state_only_plans = "allow"' in security[0]
+
+
+# ---- README accuracy round: scope and moved resources say the same thing everywhere --------------------------------
+
+BOTH_ADDRESSES = "for a moved resource BOTH its address and its `previous_address` must match the allowlist"
+
+
+def test_scope_row_says_both_addresses_must_match():
+    rows = [ln for ln in readme_text().splitlines() if ln.startswith("| `scope` |")]
+    assert len(rows) == 1
+    row = rows[0]
+    assert "both" in row.lower() and "previous_address" in row
+    assert BOTH_ADDRESSES in row
+    assert "its address or its" not in row  # the old, differently worded (equivalent) formulation
+
+
+def test_moved_resources_section_and_claude_md_use_the_same_sentence():
+    moved = readme_section_between("### Moved resources")
+    assert any(BOTH_ADDRESSES in line for line in moved.splitlines()), "wrapped or missing in 'Moved resources'"
+    claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    holders = [line for line in claude.splitlines() if BOTH_ADDRESSES in line]
+    assert len(holders) == 2, "CLAUDE.md: rule 3 and the 'Moves' bullet must both use the sentence"
+    rule3 = [u for u in doc_units(claude) if u.startswith("3. scope")]
+    assert len(rule3) == 1 and BOTH_ADDRESSES in rule3[0]
+    moves = [u for u in doc_units(claude) if u.startswith("- Moves:")]
+    assert len(moves) == 1 and BOTH_ADDRESSES in moves[0]
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md"])
+def test_no_differently_worded_description_of_the_move_rule_remains(name):
+    for unit in doc_units((ROOT / name).read_text(encoding="utf-8")):
+        if "previous_address" in unit and "match the allowlist" in unit:
+            assert BOTH_ADDRESSES in unit, f"{name}: {unit[:120]}"

@@ -130,7 +130,7 @@ fired: keep `no-replace` enabled if replacements are not allowed.
 |---|---|---|
 | `no-delete` | a resource's actions are exactly `["delete"]` (a replacement or forget is not a delete) | error |
 | `no-replace` | actions contain both `delete` and `create` (either order) | error |
-| `scope` | a change's address matches none of the allowed patterns; for a moved resource, its address or its `previous_address` matches none | error |
+| `scope` | a change's address matches none of the allowed patterns; for a moved resource BOTH its address and its `previous_address` must match the allowlist | error |
 | `stateful-protect` | a configured stateful *type* is deleted, replaced or forgotten | critical |
 | `budget` | total changes exceed `max_changes`, or creates of a type exceed its limit | error |
 
@@ -161,9 +161,9 @@ A resource that a `moved` block renames or relocates appears in `resource_change
   allowlist could be moved to an allowed address and changed in the same plan. With the real fixture
   `moved_update` and only `terraform_data.new` allowed, planfence passed although the resource being
   updated lived at `terraform_data.old`.
-- **The rule.** `scope` treats every move as a change, whatever its action (even `["no-op"]`), and a
-  moved entry passes only if both its address and its `previous_address` match the allowlist; otherwise
-  it is a `scope` violation. Entries that are not moves are unchanged (no-op and read are still ignored).
+- **The rule.** `scope` treats every move as a change, whatever its action (even `["no-op"]`):
+  for a moved resource BOTH its address and its `previous_address` must match the allowlist, otherwise it
+  is a `scope` violation. Entries that are not moves are unchanged (no-op and read are still ignored).
 - **Everything else is unchanged.** `no-delete`, `no-replace` and `stateful-protect` judge actions only.
   For `budget`, a pure move is not counted as a change (a move with an update counts once).
 - **Validation.** `previous_address`, when present, must be a non-empty string of at most 4096

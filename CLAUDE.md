@@ -86,8 +86,8 @@ Do not assume more than this. If a required field is missing, fail closed (exit 
   stateful-protect for stateful types; NOT flagged by no-delete.
 - A replacement counts as 1 change and as 1 create for its type.
 - Moves: the scope rule treats every move as a change, whatever its action (even ["no-op"]);
-  a moved entry passes only if both its address and its `previous_address` match the
-  allowlist. Non-moves unchanged. Budget unchanged: a pure move is not counted as a change
+  for a moved resource BOTH its address and its `previous_address` must match the allowlist.
+  Non-moves unchanged. Budget unchanged: a pure move is not counted as a change
   (a move + update counts once). no-delete / no-replace / stateful-protect judge actions only.
   Real bypass that existed (fixture moved_update): only the NEW address allowed passed although
   the updated resource lived at the OLD address. Across PRs: each plan is judged on its own;
@@ -106,7 +106,9 @@ Each rule needs: one failing fixture, one passing fixture, unit tests.
 1. no-delete: actions is exactly ["delete"]
 2. no-replace: actions contains both "delete" and "create"
 3. scope: only addresses matching allowed patterns (see Address matching)
-   may change; "no-op" and "read" entries are ignored
+   may change; "no-op" and "read" entries are ignored. Moves (previous_address):
+   for a moved resource BOTH its address and its `previous_address` must match the allowlist,
+   even when the action is "no-op".
 4. stateful-protect: delete, replace or forget of configured stateful types
    is `critical`
 5. budget: `max_changes` (total changes) and `max_creates_per_type`

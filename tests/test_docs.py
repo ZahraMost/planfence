@@ -278,7 +278,19 @@ RELATED_TOOLS_URL_ALLOWLIST = {
     "https://github.com/jamian/terraguard",
     "https://github.com/Dicklesworthstone/destructive_command_guard",
     "https://pypi.org/project/tfrev",
+    "https://www.bejarano.io/terraform-autoapply/",
 }
+RELATED_TOOLS_PREVIOUS_URLS = {  # the allowlist before the review round: it only grows by NEW_URL
+    "https://github.com/bridgecrewio/checkov",
+    "https://trivy.dev/latest/docs/coverage/iac/terraform/",
+    "https://github.com/open-policy-agent/conftest",
+    "https://github.com/terraform-compliance/cli",
+    "https://developer.hashicorp.com/terraform/cloud-docs/policy-enforcement/sentinel/import/tfplan-v2",
+    "https://github.com/jamian/terraguard",
+    "https://github.com/Dicklesworthstone/destructive_command_guard",
+    "https://pypi.org/project/tfrev",
+}
+RELATED_TOOLS_NEW_URL = "https://www.bejarano.io/terraform-autoapply/"
 RELATED_TOOLS_NEEDLES = [
     "November 2026", "not tested against planfence", "complementary",
     "When planfence is a good fit", "When it is not enough",
@@ -686,3 +698,36 @@ def test_what_the_readme_says_is_fine_or_ignored_really_is(tmp_path, capsys):
     drift["resource_changes"] = []
     assert run_cli_on(tmp_path, drift) == 0  # ignored by default
     capsys.readouterr()
+
+
+# ---- README accuracy round: Related tools rows ------------------------------------------------------------------------
+
+def related_row(tool):
+    rows = [ln for ln in related_tools_section().splitlines() if ln.startswith(f"| [{tool}]")]
+    assert len(rows) == 1, tool
+    return rows[0]
+
+
+def test_the_url_allowlist_is_exactly_the_previous_urls_plus_one_new_url():
+    assert len(RELATED_TOOLS_PREVIOUS_URLS) == 8
+    assert RELATED_TOOLS_URL_ALLOWLIST == RELATED_TOOLS_PREVIOUS_URLS | {RELATED_TOOLS_NEW_URL}
+    assert RELATED_TOOLS_URL_ALLOWLIST - RELATED_TOOLS_PREVIOUS_URLS == {"https://www.bejarano.io/terraform-autoapply/"}
+    assert len(RELATED_TOOLS_URL_ALLOWLIST) == 9
+
+
+def test_conftest_row_ties_the_no_op_create_read_example_to_one_linked_article():
+    row = related_row("Conftest")
+    assert "[Safe Terraform auto-apply with conftest](https://www.bejarano.io/terraform-autoapply/)" in row
+    assert "an example policy that allows only no-op, create and read actions" in row
+    assert "published examples" not in row and "a few lines of Rego" not in row  # the unsourced wording is gone
+
+
+def test_checkov_row_attributes_the_policy_count_to_its_readme():
+    row = related_row("Checkov")
+    assert "according to its README it has over 1000 built-in policies" in row
+    assert "Static analysis with over 1000" not in row
+
+
+def test_terraguard_row_mentions_the_previous_address_of_moved_resources():
+    row = related_row("Terraguard")
+    assert "including the previous address of moved resources" in row

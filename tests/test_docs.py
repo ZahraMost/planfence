@@ -263,3 +263,120 @@ def test_no_test_asserts_on_measured_wall_clock_time():
             if clocks.search(line):
                 offenders.append(f"{path.name}:{n}: {line.strip()}")
     assert offenders == []
+
+
+# ---- README: Related tools --------------------------------------------------------------------------------------
+
+RELATED_TOOLS_URL_ALLOWLIST = {
+    "https://github.com/bridgecrewio/checkov",
+    "https://trivy.dev/latest/docs/coverage/iac/terraform/",
+    "https://github.com/open-policy-agent/conftest",
+    "https://github.com/terraform-compliance/cli",
+    "https://developer.hashicorp.com/terraform/cloud-docs/policy-enforcement/sentinel/import/tfplan-v2",
+    "https://github.com/jamian/terraguard",
+    "https://github.com/Dicklesworthstone/destructive_command_guard",
+    "https://pypi.org/project/tfrev",
+}
+RELATED_TOOLS_NEEDLES = [
+    "November 2026", "not tested against planfence", "complementary",
+    "When planfence is a good fit", "When it is not enough",
+    "Checkov", "Trivy", "Conftest", "terraform-compliance", "Sentinel", "Terraguard", "dcg", "tfrev",
+]
+# the comparison must stay factual: no superlatives, no "better than", no claim that nothing else exists
+HONESTY_TERMS = ["best", "better than", "only tool", "unique", "no other", "superior", "unlike", "outperform", "no tool"]
+
+
+def readme_text():
+    return (ROOT / "README.md").read_text(encoding="utf-8")
+
+
+def related_tools_section():
+    text = readme_text()
+    start = text.index("\n## Related tools\n")
+    end = text.find("\n## ", start + 1)  # "### " subsections do not match "\n## "
+    return text[start:end if end != -1 else None]
+
+
+def test_related_tools_heading_exists_once_between_the_two_neighbouring_sections():
+    import re
+
+    lines = readme_text().splitlines()
+    assert lines.count("## Related tools") == 1
+    headings = [ln[3:] for ln in lines if ln.startswith("## ")]
+    i = headings.index("Related tools")
+    assert headings[i - 1] == "What planfence does NOT claim"
+    assert headings[i + 1] == "Verified against"
+    assert re.search(r"(?m)^## Related tools$", readme_text())
+
+
+def test_related_tools_phrases_are_each_on_a_single_line():
+    lines = related_tools_section().splitlines()
+    for needle in RELATED_TOOLS_NEEDLES:
+        assert any(needle in line for line in lines), f"{needle!r} is missing or wrapped across lines"
+
+
+def test_related_tools_has_a_dated_disclaimer():
+    import re
+
+    section = related_tools_section()
+    assert re.search(r"as of [A-Z][a-z]+ \d{4}", section)
+    assert "may be out of date" in section and "check the linked pages" in section
+
+
+def test_related_tools_links_are_exactly_the_allowlisted_https_urls():
+    import re
+
+    section = related_tools_section()
+    assert "http://" not in section
+    found = set(re.findall(r"https?://[^\s)>\]]+", section))
+    assert found - RELATED_TOOLS_URL_ALLOWLIST == set(), f"URL(s) not in the allowlist: {sorted(found - RELATED_TOOLS_URL_ALLOWLIST)}"
+    assert RELATED_TOOLS_URL_ALLOWLIST - found == set(), "an allowlisted tool is no longer linked"
+    assert section.count("](https://") == len(RELATED_TOOLS_URL_ALLOWLIST)
+
+
+def test_related_tools_makes_no_superlative_or_exclusivity_claims():
+    import re
+
+    section = related_tools_section()
+    hits = [term for term in HONESTY_TERMS if re.search(rf"\b{re.escape(term)}\b", section, re.IGNORECASE)]
+    assert hits == [], f"comparison must stay factual, found: {hits}"
+
+
+def test_honesty_guard_really_detects_the_forbidden_terms():
+    import re
+
+    for term in HONESTY_TERMS:
+        sample = f"This is the {term.upper()} option."
+        assert re.search(rf"\b{re.escape(term)}\b", sample, re.IGNORECASE), term
+    assert not re.search(r"\bbest\b", "the bestowed gift", re.IGNORECASE)  # whole words only
+
+
+def test_related_tools_has_no_at_sign_and_no_email_address():
+    import re
+
+    section = related_tools_section()
+    assert "@" not in section
+    assert not re.search(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", section)
+
+
+def test_related_tools_section_content_is_structured():
+    section = related_tools_section()
+    assert "\n### When planfence is a good fit\n" in section and "\n### When it is not enough\n" in section
+    rows = [ln for ln in section.splitlines() if ln.startswith("| ") and not ln.startswith("| Tool ")]
+    assert len(rows) == 7  # Checkov, Trivy, Conftest, terraform-compliance, Sentinel, Terraguard, AI-agent guardrails
+    assert all(row.count(" | ") == 2 and row.rstrip().endswith("|") for row in rows)
+    assert '(see "Using planfence safely in CI")' in section
+    assert "## Using planfence safely in CI" in readme_text()  # the cross-reference points at a real section
+
+
+def test_claude_md_states_the_related_tools_policy():
+    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    assert "Related tools policy" in text
+    for needle in ("public documentation", "date-stamped", "superlatives", "better than", "tests/test_docs.py", "update the date"):
+        assert needle in text, needle
+
+
+def test_changelog_lists_the_related_tools_comparison_under_added():
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    added = text[text.index("### Added"):text.index("### Security")]
+    assert "README: Related tools comparison" in added

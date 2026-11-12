@@ -317,6 +317,32 @@ planfence is a narrow guardrail, not a safety guarantee. It does **not** check:
 A passing result means "this plan, as written, matches the contract you wrote", nothing more.
 The contract is only as good as the allowlist, stateful types and budgets you configure.
 
+## Related tools
+
+planfence is a small gate for what a plan does. It does not replace the tools below: most teams should also run a security scanner and keep human review. The descriptions come from each project's public documentation as of November 2026. They were not tested against planfence and may be out of date; check the linked pages.
+
+| Tool | What it does with a plan | How planfence differs |
+|---|---|---|
+| [Checkov](https://github.com/bridgecrewio/checkov) | Static analysis with over 1000 built-in policies. It scans Terraform code and plan JSON (`checkov -f tf.json`) for security and compliance misconfigurations. Maintained by Prisma Cloud. | Checkov judges resource settings. planfence judges which resources a plan deletes, replaces, moves or adds. They are complementary. |
+| [Trivy](https://trivy.dev/latest/docs/coverage/iac/terraform/) | `trivy config tfplan.json` scans plan JSON for misconfigurations. Its documentation lists limits for plan JSON, for example incomplete references in expressions that use `count` or `for_each`. | Same distinction: Trivy looks for insecure settings, planfence looks at what changes. |
+| [Conftest](https://github.com/open-policy-agent/conftest) (Open Policy Agent) | Runs Rego policies against structured data, including plan JSON. It is general purpose and can express rules about actions, addresses, counts and attribute values. | Conftest can express the rules planfence ships (published examples allow only no-op, create and read actions in a few lines of Rego). planfence needs no Rego, ships ready-made rules (scope that also checks the previous address of moved resources, stateful types, change budgets), refuses plans it cannot fully understand, and was verified with real Terraform and OpenTofu output. For attribute-level or custom logic use Conftest; the two can run side by side. |
+| [terraform-compliance](https://github.com/terraform-compliance/cli) | A BDD framework: Gherkin feature files run against a plan (`terraform-compliance -f features -p plan.out`), readable by people who do not program. | planfence has no scenario language, only a fixed rule set configured in TOML. |
+| Sentinel ([tfplan/v2 import](https://developer.hashicorp.com/terraform/cloud-docs/policy-enforcement/sentinel/import/tfplan-v2)) | HashiCorp's policy as code runs inside HCP Terraform or Terraform Enterprise and sees the plan through the tfplan/v2 import, including the actions of each change. See HashiCorp's pricing for the limits of the free edition. | planfence runs anywhere (a laptop, any CI), needs no platform and no policy language. |
+| [Terraguard](https://github.com/jamian/terraguard) | A small Python CLI that checks Terraform plans against rules written in YAML (its README shows required tags). | planfence focuses on actions and addresses and reads a plan JSON file that you produce. |
+| AI-agent guardrails, for example [dcg](https://github.com/Dicklesworthstone/destructive_command_guard) and [tfrev](https://pypi.org/project/tfrev) | dcg is a hook that blocks destructive commands before an AI coding agent runs them. tfrev uses an LLM to review a plan against the code change. | dcg looks at commands and tfrev uses a model. planfence has no model: it is deterministic and judges the finished plan. The layers complement each other: a hook can stop dangerous commands, planfence checks the plan before apply. |
+
+### When planfence is a good fit
+
+- You want a small, deterministic, fail-closed gate on what a plan does ("no deletes, no replacements, only these resources, at most N changes"), for example for AI-generated or automated changes.
+- You do not want to write or maintain a policy language.
+- You use Terraform, OpenTofu or both.
+
+### When it is not enough
+
+- You need checks on attribute values (encryption, open ports, tags, instance sizes): use Checkov, Trivy, Conftest or terraform-compliance.
+- You need cost control or checks against live state.
+- You need an approval workflow: planfence says whether a plan stays inside a contract, not whether it should be applied (see "Using planfence safely in CI").
+
 ## Verified against
 
 Plan JSON shapes were verified with real `show -json` output from **Terraform 1.17.2** and

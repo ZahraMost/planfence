@@ -20,6 +20,8 @@ The project was formerly named planguard (renamed because that name collides wit
 - Example config, example GitHub Actions workflow, CODEOWNERS example, CI workflow.
 - Dev-only quality gates: ruff and mypy (strict) on `src/`, run by a separate CI job; dependabot for the
   GitHub Actions in use.
+- README: Related tools comparison (Checkov, Trivy, Conftest, terraform-compliance, Sentinel, Terraguard, AI-agent
+  guardrails): factual and date-stamped, with an allowlist test for its links.
 
 ### Security
 - planfence is fail-closed: exit 0 only if the plan was fully understood and every enabled rule passed; every other

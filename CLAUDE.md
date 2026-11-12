@@ -228,6 +228,9 @@ planfence sees only the plan JSON, not the command line.
 - Recommended for any CI gate; default stays "allow" so existing contracts keep working.
 - Passed explicitly: config -> load_plan(path, plan_source=..., state_only_plans=...) -> parse_plan.
 
+## README: Related tools policy
+The README's Related tools section may only state claims taken from the other tools' public documentation, each date-stamped (never superlatives or "better than", and never a claim that another tool lacks a feature unless that was verified); its links are allowlisted in tests/test_docs.py, and you must update the date whenever the section is edited.
+
 ## NOT verified / known gaps (keep this list honest)
 - OpenTofu: verified only for 1.13.9 and only on the 16 terraform_data scenarios (same as
   Terraform 1.17.2 except no `complete`/`applyable`). OpenTofu partial plans (-target /

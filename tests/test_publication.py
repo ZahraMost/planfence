@@ -66,17 +66,34 @@ def test_readme_codeowners_block_matches_the_example_file():
         assert " ".join(line.split()) in " ".join(readme.split()), line
 
 
-def test_example_workflow_install_url_and_the_pinning_comment():
+def test_example_workflow_installs_the_pinned_pypi_release_and_says_to_bump_it_deliberately():
     text = EXAMPLE.read_text(encoding="utf-8")
-    url = "git+https://github.com/ZahraMost/planfence.git@v0.1.0"
-    assert f'pip install "{url}"' in text  # the install URL keeps pointing at the release tag
-    comment = " ".join(ln.strip().lstrip("#").strip() for ln in text[:text.index(url)].splitlines()[-9:]
+    assert 'python -m pip install "planfence==0.1.1"' in text
+    installs = [ln.strip() for ln in text.splitlines() if "pip install" in ln and not ln.strip().startswith("#")]
+    assert installs == ['run: python -m pip install "planfence==0.1.1"'], installs
+    # every install of planfence itself is pinned with ==; an unpinned one is forbidden
+    assert not re.search(r"pip install\s+\"?planfence(?!==)", text)
+    assert "git+https" not in text
+    comment = " ".join(ln.strip().lstrip("#").strip() for ln in text[:text.index('"planfence==0.1.1"')].splitlines()[-8:]
                        if ln.strip().startswith("#"))
-    assert "release tag or a commit" in comment
+    assert "pinned (==)" in comment
     assert "trust boundary" in comment
-    assert "A v0.1.0 tag is created when the release is published" in comment
-    # the pre-release wording is gone
+    assert "Bump the version deliberately" in comment and "never leave it unpinned" in comment
+    # the outdated wording is gone
+    assert "tag is created" not in text and "release tag or a commit" not in text
     assert "does not exist yet" not in text and "nothing has been released" not in text
+
+
+@pytest.mark.parametrize("line, pinned", [
+    ('run: python -m pip install "planfence==0.1.1"', True),
+    ("run: pip install planfence==0.1.1", True),
+    ("run: pip install planfence", False),
+    ('run: python -m pip install "planfence"', False),
+    ("run: pip install planfence>=0.1", False),
+])
+def test_the_unpinned_install_detector_works(line, pinned):
+    unpinned = re.search(r"pip install\s+\"?planfence(?!==)", line)
+    assert (unpinned is None) is pinned, line
 
 
 # ---- 2. identical action versions ------------------------------------------------------------------------

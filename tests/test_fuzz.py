@@ -25,7 +25,6 @@ import random
 import re
 import subprocess
 import sys
-import time
 from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -34,6 +33,7 @@ import pytest
 
 from planfence import cli
 from tests.conftest import SRC
+from tests.timing import HANG_SECONDS, HangError, hang_guard
 
 N = int(os.environ.get("PLANFENCE_FUZZ_N", "20000"))
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -567,19 +567,22 @@ def check(i, raw, cfg_name, fmt, desc, code, out, err):
 
 
 def test_fuzz_differential(cfg_paths, tmp_path):
+    """No wall-clock bound: slow runners must not fail this test. Complexity (accidental quadratic work)
+    is covered by tests/test_scaling.py with operation counts and machine-independent scaling ratios; the
+    only time limit left is a generous watchdog against an endless hang (tests/timing.py)."""
     plan_path = tmp_path / "plan.json"
     outcomes = Counter()
-    start = time.perf_counter()
-    for i in range(N):
-        raw, cfg_name, fmt, desc = gen_case(i)
-        try:
-            code, out, err = run_cli(raw, cfg_paths[cfg_name], fmt, plan_path)
-        except BaseException as exc:  # nothing may escape cli.main
-            pytest.fail(f"uncaught {exc!r}\niteration={i} config={cfg_name} format={fmt} {desc}\nraw[:2000]={raw[:2000]!r}")
-        check(i, raw, cfg_name, fmt, desc, code, out, err)
-        outcomes[code] += 1
-    elapsed = time.perf_counter() - start
-    assert elapsed < 30, f"{N} mutations took {elapsed:.1f}s"
+    with hang_guard(HANG_SECONDS, f"fuzzing {N} iterations"):
+        for i in range(N):
+            raw, cfg_name, fmt, desc = gen_case(i)
+            try:
+                code, out, err = run_cli(raw, cfg_paths[cfg_name], fmt, plan_path)
+            except HangError:
+                raise  # the watchdog's own message, not "uncaught"
+            except BaseException as exc:  # nothing may escape cli.main
+                pytest.fail(f"uncaught {exc!r}\niteration={i} config={cfg_name} format={fmt} {desc}\nraw[:2000]={raw[:2000]!r}")
+            check(i, raw, cfg_name, fmt, desc, code, out, err)
+            outcomes[code] += 1
     if N >= 2000:  # the test must not be vacuous: every outcome is well represented
         scale = N / 20000
         for code in (0, 1, 2):

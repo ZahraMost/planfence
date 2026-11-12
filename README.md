@@ -21,15 +21,21 @@ scope. planfence catches those cheaply and repeatably.
 ## Quick start
 
 ```sh
-# from a checkout (no install needed)
-PYTHONPATH=src python -m planfence plan.json --config planfence.toml
-
-# or install it (provides the `planfence` command)
-pip install .
+# install (needs Python 3.11 or newer; no runtime dependencies; provides the `planfence` command)
+pip install planfence
 
 terraform plan -out=tfplan
 terraform show -json tfplan > plan.json
 planfence plan.json --config planfence.toml
+```
+
+Alternatively, install from a clone (for development, or to pin a commit), or run it from the clone without
+installing:
+
+```sh
+pip install .
+# or, without installing:
+PYTHONPATH=src python -m planfence plan.json --config planfence.toml
 ```
 
 Sample output. This is real output of the CLI (a test reproduces it exactly) on the test fixture

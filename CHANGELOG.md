@@ -15,6 +15,7 @@ Packaging release; no change to planfence's behaviour, rules or output.
 ### Changed
 - README links and anchors are absolute `https://github.com/ZahraMost/planfence...` URLs, so they also work in
   the PyPI long description. A test forbids relative links in the README.
+- README Quick start shows `pip install planfence` first and installing from a clone as the alternative.
 
 ## [0.1.0] - 2026-11-12
 

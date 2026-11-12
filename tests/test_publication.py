@@ -244,3 +244,12 @@ def test_the_only_user_mentioned_in_tracked_files_is_zahramost():
             if m.group(1) != "ZahraMost" and path.relative_to(ROOT).parts[0] != "tests":
                 found.append(f"{path.relative_to(ROOT)}: @{m.group(1)}")
     assert found == []
+
+
+def test_readme_quick_start_shows_the_pypi_install_before_the_clone_install():
+    section = readme_section("Quick start")
+    assert "pip install planfence" in section and "pip install ." in section
+    assert section.index("pip install planfence") < section.index("pip install .")
+    assert "Python 3.11 or newer" in section
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert text.index("pip install planfence") < text.index("pip install .")

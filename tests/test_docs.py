@@ -424,3 +424,127 @@ def test_quick_start_sample_is_not_the_main_example():
     section = readme_section_between("## Quick start")
     assert "Real plan example" in section  # points to the main example (local_file, real providers)
     assert "local_file" not in section
+
+
+# ---- README accuracy round: output_changes / resource_drift are DEFAULT behaviour ------------------------------------
+
+def doc_units(text):
+    """Split Markdown source into units: paragraphs, table rows, headings and list items. A list that follows a
+    sentence ending in ':' belongs to that sentence; fenced code blocks are skipped."""
+    units, in_fence, current, attached, blank_seen = [], False, None, False, False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence, current, attached = not in_fence, None, False
+            continue
+        if in_fence:
+            continue
+        if not stripped:
+            blank_seen = True
+            if not attached:
+                current = None
+            continue
+        is_item = re.match(r"\s*([-*]|\d+\.)\s", line) is not None
+        if is_item:
+            last = units[-1] if units else None
+            if attached:
+                last.append(stripped)
+            elif last and last[-1].endswith(":") and (blank_seen or current is last):
+                attached = True
+                last.append(stripped)
+            else:
+                current = [stripped]
+                units.append(current)
+                attached = False
+            blank_seen = False
+            continue
+        if stripped.startswith(("|", "#")):
+            units.append([stripped])
+            current, attached = None, False
+        elif attached and line.startswith((" ", "\t")):
+            units[-1].append(stripped)
+        else:
+            attached = False
+            if current is None:
+                current = [stripped]
+                units.append(current)
+            else:
+                current.append(stripped)
+        blank_seen = False
+    return [" ".join(unit) for unit in units]
+
+
+def test_doc_units_splits_list_items_rows_and_keeps_intro_lists_together():
+    sample = "\n".join([
+        "Intro sentence about x:",
+        "",
+        "- first fragment mentioning output_changes;",
+        "- second fragment;",
+        "",
+        "Another paragraph",
+        "that wraps.",
+        "",
+        "- item one",
+        "  continues here",
+        "- item two",
+        "  - nested item",
+        "| a | b |",
+        "|---|---|",
+        "| row | cell |",
+        "```",
+        "code inside a fence",
+        "```",
+        "## Heading",
+    ])
+    units = doc_units(sample)
+    assert units[0].startswith("Intro sentence about x: - first fragment") and "second fragment" in units[0]
+    assert "Another paragraph that wraps." in units
+    assert "- item one continues here" in units and "- item two" in units and "- nested item" in units
+    assert "| row | cell |" in units and "## Heading" in units
+    assert not any("code inside a fence" in unit for unit in units)
+
+
+def default_or_key_missing(text):
+    """Units that mention output_changes / resource_drift without saying 'default' or naming state_only_plans."""
+    return [unit for unit in doc_units(text)
+            if re.search(r"output_changes|resource_drift", unit) and not re.search(r"default|state_only_plans", unit, re.I)]
+
+
+def test_the_default_guard_detects_a_missing_qualifier():
+    assert default_or_key_missing("- `output_changes` is ignored.\n- another item mentions nothing") != []
+    assert default_or_key_missing("- `output_changes` is ignored by default.") == []
+    assert default_or_key_missing("Some text:\n\n- `resource_drift` entry;\n- more;\n\n(state_only_plans)") != []
+    assert default_or_key_missing("Refuse with state_only_plans:\n\n- `resource_drift` entry;") == []
+
+
+@pytest.mark.parametrize("name", ["README.md", "CLAUDE.md", "SECURITY.md"])
+def test_every_mention_of_output_changes_or_resource_drift_says_default_or_names_the_key(name):
+    offenders = default_or_key_missing((ROOT / name).read_text(encoding="utf-8"))
+    assert offenders == [], f"{name}: no 'default' / 'state_only_plans' next to: {[o[:90] for o in offenders]}"
+
+
+STATE_ONLY_ANCHOR = "(#refusing-state-only-plans-state_only_plans)"
+
+
+def test_the_not_claimed_bullet_names_the_default_and_points_to_the_state_only_section():
+    section = readme_section_between("## What planfence does NOT claim")
+    bullets = [u for u in doc_units(section) if "output_changes" in u]
+    assert len(bullets) == 1
+    bullet = bullets[0]
+    assert 'default `state_only_plans = "allow"`' in bullet
+    assert 'state_only_plans = "refuse"' in bullet and "exit 2" in bullet
+    assert STATE_ONLY_ANCHOR in bullet
+    assert "v0.1 inspects" not in section
+    assert "passes with exit 0" in bullet  # the example stays, now qualified by the default
+    assert "### Refusing state-only plans: `state_only_plans`" in readme_text()  # the anchor target exists
+
+
+def test_claude_md_and_security_say_default_where_they_mention_the_sections():
+    claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+    units = doc_units(claude)
+    count_only = [u for u in units if u.startswith("- Count only `resource_changes`")]
+    assert len(count_only) == 1 and "by default" in count_only[0] and "state_only_plans" in count_only[0]
+    nor = [u for u in units if "README must state what planfence does NOT claim" in u]
+    assert len(nor) == 1 and "by default" in nor[0] and "v0.1, `output_changes`" not in nor[0]
+    security = [u for u in doc_units((ROOT / "SECURITY.md").read_text(encoding="utf-8")) if "output_changes" in u]
+    assert len(security) == 1 and "by default" in security[0] and 'state_only_plans = "allow"' in security[0]

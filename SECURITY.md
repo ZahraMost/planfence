@@ -39,7 +39,9 @@ These are documented limitations, not vulnerabilities (see the README):
 - anything planfence states it does not check: security of the infrastructure, cost, configuration
   correctness, live state, provisioners (`local-exec`, `remote-exec`), data source side effects (for
   example the `external` data source runs during `terraform plan`), what a create actually does;
-- `output_changes` and `resource_drift` unless `state_only_plans = "refuse"` is set;
+- `output_changes` and `resource_drift` by default (`state_only_plans = "allow"`; with the opt-in
+  `state_only_plans = "refuse"` planfence exits 2 for plans whose only effects are output changes, drift or
+  pure moves);
 - OpenTofu plans made with `-target` or `-exclude`, which cannot be recognised as partial;
 - plans from Terraform/OpenTofu or provider versions that were not verified (planfence does not check
   `terraform_version` or providers; pin them in CI);

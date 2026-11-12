@@ -279,7 +279,8 @@ planfence sees only the finished plan JSON, not the command line that produced i
   ([tests/fixtures/README.md](tests/fixtures/README.md)): the plan has **no `resource_changes` key**, so
   planfence reports "0 changes" and exits 0, even with the strictest contract. That includes a refresh
   that would change the state: when a data source's remote state changed, the only trace is
-  `output_changes` (Terraform also reports `applyable: true`), which planfence does not check. Do not
+  `output_changes` (Terraform also reports `applyable: true`), which planfence does not check by default
+  (`state_only_plans = "allow"`). Do not
   treat a pass on a refresh-only plan as "nothing will change"; applying it updates the state.
   Set `state_only_plans = "refuse"` to close this gap (see below).
   Drift of a managed resource (`resource_drift`) could not be produced offline and is not verified.
@@ -321,10 +322,12 @@ planfence is a narrow guardrail, not a safety guarantee. It does **not** check:
   your cloud, state or providers. Creating the plan is different: `terraform plan` / `tofu plan`
   may contact providers, read and refresh state, and run data sources (for example `external`
   runs a program), all before planfence starts;
-- **`output_changes`** or **`resource_drift`** in the plan JSON (v0.1 inspects `resource_changes` only).
-  Example: a plan whose only changes are a deleted output (`output_changes`) or an out-of-band
-  deleted database found during refresh (`resource_drift`), with an empty `resource_changes`,
-  **passes with exit 0**;
+- **`output_changes`** and **`resource_drift`**, by default: with the default `state_only_plans = "allow"`
+  planfence inspects `resource_changes` only. Example: a plan whose only changes are a deleted output
+  (`output_changes`) or an out-of-band deleted database found during refresh (`resource_drift`), with an
+  empty `resource_changes`, **passes with exit 0**. With `state_only_plans = "refuse"` such plans (and
+  plans whose only effect is a pure move) exit 2, see
+  [Refusing state-only plans](#refusing-state-only-plans-state_only_plans);
 - **attribute-level changes**: an `update` is an `update`, whatever it changes.
 
 A passing result means "this plan, as written, matches the contract you wrote", nothing more.

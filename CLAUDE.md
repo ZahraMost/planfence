@@ -92,7 +92,8 @@ Do not assume more than this. If a required field is missing, fail closed (exit 
   Real bypass that existed (fixture moved_update): only the NEW address allowed passed although
   the updated resource lived at the OLD address. Across PRs: each plan is judged on its own;
   the allowlist is the contract.
-- Count only `resource_changes`; never `resource_drift` or `output_changes`.
+- Count only `resource_changes`; never `resource_drift` or `output_changes`: this is the behaviour by default
+  (state_only_plans = "allow"); with "refuse" they only make a zero-change plan exit 2 (see state_only_plans).
 - Identify and sort entries by `address`, then `deposed`, then `previous_address`.
 
 ## Address matching
@@ -207,8 +208,9 @@ planfence sees only the plan JSON, not the command line.
   cannot be recognised (see plan_source above); run `tofu plan` without -target/-exclude.
 - -refresh-only: NO `resource_changes` key -> "0 changes", exit 0 even with the strictest
   contract. With real drift (remote state output changed) the only trace is `output_changes`
-  (Terraform also `applyable: true`), which is not checked. A pass is not "nothing changes";
-  applying it updates state. `resource_drift` could not be produced offline: unverified.
+  (Terraform also `applyable: true`), which is not checked by default (state_only_plans = "allow";
+  "refuse" exits 2). A pass is not "nothing changes"; applying it updates state. `resource_drift`
+  could not be produced offline: unverified.
 - -replace=ADDR: `["delete","create"]` with `action_reason: replace_by_request` and no
   `replace_paths`; same `actions` as a config-driven replacement. planfence cannot know the
   flag: keep `no-replace` enabled if replacements are not allowed (no-delete does not fire).
@@ -223,7 +225,8 @@ planfence sees only the plan JSON, not the command line.
 - Verified with real plans (tests/fixtures/outputs, modes, moved; both tools): unchanged output
   = ["no-op"] (not refused); output changing with a resource change (not refused); refresh-only
   with real output drift (refused); output only added, `output_added_only` (refused); pure move
-  (refused). `resource_drift` only via the hand-made tests/fixtures/handmade/resource_drift.json
+  (refused) - all of this only with state_only_plans = "refuse", by default they pass.
+  `resource_drift` only via the hand-made tests/fixtures/handmade/resource_drift.json
   (real drift cannot be produced offline).
 - Recommended for any CI gate; default stays "allow" so existing contracts keep working.
 - Passed explicitly: config -> load_plan(path, plan_source=..., state_only_plans=...) -> parse_plan.
@@ -313,5 +316,5 @@ or any network use other than `pip install` and Terraform's own init.
 - When unsure about Terraform behaviour, say so and ask me to verify with a
   real `terraform` command. Never guess.
 - README must state what planfence does NOT claim: it does not check security,
-  cost, configuration correctness, or live infrastructure. Nor, in v0.1,
-  `output_changes` or `resource_drift`.
+  cost, configuration correctness, or live infrastructure. Nor, by default
+  (state_only_plans = "allow"), `output_changes` or `resource_drift`.

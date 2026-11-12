@@ -30,6 +30,9 @@ def test_dependabot_only_touches_github_actions():
 
 SECURITY_NEEDLES = [
     "Supported versions",
+    "latest `0.1.x` release",
+    "current `main` branch",
+    "Older versions are not supported",
     "Reporting a vulnerability",
     "privately",
     "security advisories",
@@ -43,6 +46,14 @@ SECURITY_NEEDLES = [
     "attribute values",
     "remove any secrets",
 ]
+
+
+def test_supported_versions_section_states_the_release_policy():
+    text = read("SECURITY.md")
+    section = text[text.index("## Supported versions"):text.index("## Reporting a vulnerability")]
+    assert "latest `0.1.x` release" in section and "current `main` branch" in section
+    assert "Older versions are not supported" in section
+    assert "pre-release" not in section and "0.0.x" not in section
 
 
 def test_security_policy_content():

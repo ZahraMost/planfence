@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-planfence is pre-release (`0.0.x`). Only the current `main` branch is supported; fixes are not
-backported.
+Only the latest `0.1.x` release and the current `main` branch are supported.
+Older versions are not supported; fixes are not backported.
 
 ## Reporting a vulnerability
 

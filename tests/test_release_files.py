@@ -153,6 +153,6 @@ def test_changelog_announces_a_first_release_and_keeps_the_rename_note():
 
 def test_readme_links_both_files():
     text = read("README.md")
-    assert "[SECURITY.md](SECURITY.md)" in text
-    assert "[CHANGELOG.md](CHANGELOG.md)" in text
+    assert "[SECURITY.md](https://github.com/ZahraMost/planfence/blob/main/SECURITY.md)" in text
+    assert "[CHANGELOG.md](https://github.com/ZahraMost/planfence/blob/main/CHANGELOG.md)" in text
     assert (ROOT / "SECURITY.md").is_file() and (ROOT / "CHANGELOG.md").is_file()

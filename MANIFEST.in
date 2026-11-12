@@ -1,0 +1,6 @@
+include LICENSE README.md CHANGELOG.md SECURITY.md CLAUDE.md
+recursive-include tests *
+recursive-include scripts *.py
+recursive-include examples *
+prune tests/__pycache__
+global-exclude __pycache__ *.py[cod]

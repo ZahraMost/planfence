@@ -44,9 +44,11 @@ def artifacts(tmp_path_factory):
     work = tmp_path_factory.mktemp("pkg")
     proj = work / "proj"
     proj.mkdir()
-    for name in ("pyproject.toml", "README.md", "LICENSE"):
+    for name in ("pyproject.toml", "README.md", "LICENSE", "MANIFEST.in", "CHANGELOG.md", "SECURITY.md", "CLAUDE.md"):
         shutil.copy(ROOT / name, proj / name)
     shutil.copytree(SRC / "planfence", proj / "src" / "planfence", ignore=shutil.ignore_patterns("__pycache__"))
+    for folder in ("tests", "scripts", "examples"):
+        shutil.copytree(ROOT / folder, proj / folder, ignore=shutil.ignore_patterns("__pycache__", ".pytest_cache"))
     dist = work / "dist"
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PLANFENCE_SRC")}
     proc = subprocess.run([sys.executable, "-m", "build", "--outdir", str(dist), str(proj)],
@@ -185,3 +187,71 @@ def test_python_dash_m_works_from_the_installed_package(installed):
     python, _, env, work = installed
     proc = subprocess.run([str(python), "-m", "planfence", "--version"], capture_output=True, text=True, env=env, cwd=work)
     assert proc.returncode == 0 and proc.stdout.startswith("planfence ")
+
+
+# ---- the sdist carries the tests WITH their fixtures, and they run from the extracted sdist ---------------------
+
+def repo_files(folder):
+    """Files below `folder` as they are in the repository (no caches)."""
+    return {p.relative_to(ROOT).as_posix() for p in (ROOT / folder).rglob("*")
+            if p.is_file() and "__pycache__" not in p.parts and ".pytest_cache" not in p.parts}
+
+
+def test_sdist_contains_every_test_fixture_script_and_example(artifacts):
+    _, sdist, _ = artifacts
+    root = f"planfence-{project_version()}/"
+    with tarfile.open(sdist) as t:
+        names = {n[len(root):] for n in t.getnames() if n.startswith(root)}
+    for folder in ("tests", "scripts", "examples"):
+        missing = repo_files(folder) - names
+        assert missing == set(), f"missing from the sdist: {sorted(missing)[:5]}"
+    assert any(n.startswith("tests/fixtures/real/") and n.endswith(".json") for n in names)
+    assert {"MANIFEST.in", "CHANGELOG.md", "SECURITY.md"} <= names
+    assert not [n for n in names if "__pycache__" in n or n.endswith(".pyc")]
+
+
+def test_tests_extracted_from_the_sdist_run_against_their_fixtures(artifacts, tmp_path):
+    _, sdist, _ = artifacts
+    with tarfile.open(sdist) as t:
+        t.extractall(tmp_path, filter="data")
+    (root,) = [p for p in tmp_path.iterdir() if p.is_dir()]
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "PLANFENCE_SRC", "PLANFENCE_FUZZ_N")}
+    proc = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                           "tests/test_check.py", "tests/test_parser.py", "tests/test_moves.py", "tests/test_plan_modes.py"],
+                          cwd=root, capture_output=True, text=True, env=env, timeout=600)
+    assert proc.returncode == 0, proc.stdout[-2000:] + proc.stderr[-1000:]
+    assert " passed" in proc.stdout and "skipped" not in proc.stdout and "error" not in proc.stdout.lower()
+
+
+def test_metadata_has_authors_urls_keywords_and_classifiers(artifacts):
+    wheel, _, _ = artifacts
+    meta = wheel_text(wheel, ".dist-info/METADATA")
+    repo = "https://github.com/ZahraMost/planfence"
+    assert "Author: ZahraMost" in meta and "@" not in meta.split("\n\n", 1)[0].split("Author:")[1].split("\n")[0]
+    for url in (f"Homepage, {repo}", f"Repository, {repo}", f"Issues, {repo}/issues",
+                f"Changelog, {repo}/blob/main/CHANGELOG.md"):
+        assert f"Project-URL: {url}" in meta, url
+    assert "Keywords: " in meta
+    classifiers = [ln.split(": ", 1)[1] for ln in meta.splitlines() if ln.startswith("Classifier: ")]
+    assert classifiers == [
+        "Development Status :: 3 - Alpha", "Intended Audience :: Developers", "Operating System :: OS Independent",
+        "Programming Language :: Python :: 3", "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12", "Programming Language :: Python :: 3.13",
+        "Topic :: Software Development :: Quality Assurance"]
+    assert not [c for c in classifiers if c.startswith("License ::")]
+    assert "Description-Content-Type: text/markdown" in meta
+
+
+def test_readme_has_no_relative_links_or_anchors_because_pypi_shows_it_as_long_description():
+    import re
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    targets = re.findall(r"\]\(([^)\s]+)\)", text)
+    assert targets
+    assert [t for t in targets if not t.startswith("https://")] == []
+    own = [t for t in targets if t.startswith("https://github.com/ZahraMost/planfence")]
+    assert own and all(re.fullmatch(r"https://github\.com/ZahraMost/planfence(?:#[\w-]+|/(?:blob|tree)/main/[\w./-]+)", t)
+                       for t in own), own
+    for t in own:  # every own-repo file link points at something that exists
+        m = re.search(r"/(?:blob|tree)/main/(.+)$", t)
+        if m:
+            assert (ROOT / m.group(1)).exists(), t

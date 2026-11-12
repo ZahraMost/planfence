@@ -2,6 +2,20 @@
 
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-11-12
+
+Packaging release; no change to planfence's behaviour, rules or output.
+
+### Added
+- Package metadata for PyPI: author, keywords, classifiers (Alpha, Python 3.11-3.13, Quality Assurance) and
+  project URLs (Homepage, Repository, Issues, Changelog).
+- `MANIFEST.in`: the sdist now contains the tests with their fixtures, the scripts and the examples. The
+  packaging test checks that, and runs tests extracted from the built sdist against their fixtures.
+
+### Changed
+- README links and anchors are absolute `https://github.com/ZahraMost/planfence...` URLs, so they also work in
+  the PyPI long description. A test forbids relative links in the README.
+
 ## [0.1.0] - 2026-11-12
 
 First release.

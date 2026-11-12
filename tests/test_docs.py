@@ -546,7 +546,7 @@ def test_every_mention_of_output_changes_or_resource_drift_says_default_or_names
     assert offenders == [], f"{name}: no 'default' / 'state_only_plans' next to: {[o[:90] for o in offenders]}"
 
 
-STATE_ONLY_ANCHOR = "(#refusing-state-only-plans-state_only_plans)"
+STATE_ONLY_ANCHOR = "(https://github.com/ZahraMost/planfence#refusing-state-only-plans-state_only_plans)"
 
 
 def test_the_not_claimed_bullet_names_the_default_and_points_to_the_state_only_section():
@@ -645,7 +645,7 @@ def test_output_changes_and_resource_drift_are_ignored_by_default_is_said_separa
     text = separate[0]
     assert text.startswith("- ") and text != exit_2_bullet()
     assert "by default" in text and 'state_only_plans = "allow"' in text and "ignored" in text and "not refused" in text
-    assert "(#refusing-state-only-plans-state_only_plans)" in text
+    assert "(https://github.com/ZahraMost/planfence#refusing-state-only-plans-state_only_plans)" in text
 
 
 def plan_with(**changes):

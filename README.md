@@ -1,6 +1,6 @@
 > **Status: early release (0.1.x), experimental.** planfence is a narrow guardrail, not a security audit:
 > a pass means 'this plan stays inside the contract you wrote', nothing more
-> (see [What planfence does NOT claim](#what-planfence-does-not-claim)).
+> (see [What planfence does NOT claim](https://github.com/ZahraMost/planfence#what-planfence-does-not-claim)).
 
 # planfence
 
@@ -68,7 +68,7 @@ Options: `--config PATH` (default `./planfence.toml`; a missing file is an error
 This is an actual run, not a mock-up. It was produced with **Terraform 1.17.2** and the providers
 `hashicorp/local` (v2.9.1) and `hashicorp/random` (v3.9.1); no cloud account is involved (the only
 file written is a local text file in a throwaway directory). The plan JSON and Terraform's own text
-output are kept in [tests/fixtures/providers/terraform/](tests/fixtures/providers/terraform/) together with the
+output are kept in [tests/fixtures/providers/terraform/](https://github.com/ZahraMost/planfence/tree/main/tests/fixtures/providers/terraform/) together with the
 exact provider versions.
 
 The configuration (the first apply created the file with `content = "hello"`; the plan below changes it):
@@ -150,11 +150,11 @@ How changes are counted:
   Absent or empty `action_invocations` / `deferred_changes` are fine. Input that cannot be parsed at all
   (invalid JSON, missing or malformed required fields, over-long strings) also exits 2. About incomplete
   plans: Terraform marks a plan made with `-target` as `complete: false`, which is refused; an OpenTofu
-  partial plan (`-target` / `-exclude`) cannot be detected, so it is not refused (see [OpenTofu](#opentofu)).
+  partial plan (`-target` / `-exclude`) cannot be detected, so it is not refused (see [OpenTofu](https://github.com/ZahraMost/planfence#opentofu)).
 - **`output_changes` and `resource_drift` are ignored, not refused, by default** (`state_only_plans = "allow"`):
   a plan whose only effects are output changes, drift or pure moves passes if the rules pass. With
   `state_only_plans = "refuse"` such plans exit 2, see
-  [Refusing state-only plans](#refusing-state-only-plans-state_only_plans).
+  [Refusing state-only plans](https://github.com/ZahraMost/planfence#refusing-state-only-plans-state_only_plans).
 - An absent `resource_changes` key means "nothing planned" (Terraform omits it for empty plans),
   accepted only when `format_version` is known, `errored` is false and `complete` is true.
 
@@ -162,7 +162,7 @@ How changes are counted:
 
 A resource that a `moved` block renames or relocates appears in `resource_changes` with a
 `previous_address`. Verified with real Terraform 1.17.2 and OpenTofu 1.13.9 plans
-([tests/fixtures/README.md](tests/fixtures/README.md)): a pure rename or move into a module is
+([tests/fixtures/README.md](https://github.com/ZahraMost/planfence/blob/main/tests/fixtures/README.md)): a pure rename or move into a module is
 `["no-op"]`, a move together with an input change is `["update"]` at the **new** address.
 
 - **The bypass that existed.** `scope` used to look only at the new address, so a resource outside the
@@ -186,7 +186,7 @@ A resource that a `moved` block renames or relocates appears in `resource_change
 
 ## Configuration: `planfence.toml`
 
-See [examples/planfence.toml](examples/planfence.toml).
+See [examples/planfence.toml](https://github.com/ZahraMost/planfence/blob/main/examples/planfence.toml).
 
 ```toml
 enabled_rules = ["no-delete", "no-replace", "scope", "stateful-protect", "budget"]
@@ -281,10 +281,10 @@ planfence sees only the finished plan JSON, not the command line that produced i
 
 - **`-target`.** Terraform marks such a plan `complete: false`, and planfence refuses it (exit 2, in
   both `plan_source` modes whenever `complete` is present). OpenTofu gives no signal, so its targeted
-  plans cannot be recognised; see the [OpenTofu](#opentofu) section and run `tofu plan` without
+  plans cannot be recognised; see the [OpenTofu](https://github.com/ZahraMost/planfence#opentofu) section and run `tofu plan` without
   `-target` / `-exclude`.
 - **`-refresh-only`.** Verified with real Terraform 1.17.2 and OpenTofu 1.13.9
-  ([tests/fixtures/README.md](tests/fixtures/README.md)): the plan has **no `resource_changes` key**, so
+  ([tests/fixtures/README.md](https://github.com/ZahraMost/planfence/blob/main/tests/fixtures/README.md)): the plan has **no `resource_changes` key**, so
   planfence reports "0 changes" and exits 0, even with the strictest contract. That includes a refresh
   that would change the state: when a data source's remote state changed, the only trace is
   `output_changes` (Terraform also reports `applyable: true`), which planfence does not check by default
@@ -310,7 +310,7 @@ other than no-op or read; moves do not count as changes) **and** at least one of
 - at least one moved entry (a pure move).
 
 Plans that also change resources are never refused by this key. Verified with real plans of both
-tools ([tests/fixtures/README.md](tests/fixtures/README.md)): an unchanged output is listed as
+tools ([tests/fixtures/README.md](https://github.com/ZahraMost/planfence/blob/main/tests/fixtures/README.md)): an unchanged output is listed as
 `["no-op"]` (not refused); an output that changes because a resource changes comes together with the
 resource change (not refused); `-refresh-only` with real output drift is refused; a plan that only
 adds an output (`output_added_only`) is refused; a pure move is refused. `resource_drift` is verified
@@ -335,7 +335,7 @@ planfence is a narrow guardrail, not a safety guarantee. It does **not** check:
   (`output_changes`) or an out-of-band deleted database found during refresh (`resource_drift`), with an
   empty `resource_changes`, **passes with exit 0**. With `state_only_plans = "refuse"` such plans (and
   plans whose only effect is a pure move) exit 2, see
-  [Refusing state-only plans](#refusing-state-only-plans-state_only_plans);
+  [Refusing state-only plans](https://github.com/ZahraMost/planfence#refusing-state-only-plans-state_only_plans);
 - **attribute-level changes**: an `update` is an `update`, whatever it changes.
 
 A passing result means "this plan, as written, matches the contract you wrote", nothing more.
@@ -376,20 +376,20 @@ read (deferred and immediate), empty plan, `count`, `for_each`, a local module, 
 `import` variants, plus three `moved` scenarios (rename, rename with a change, move into a module).
 The `actions` lists, `change.importing` and the presence of
 `resource_changes` are identical in both tools; the only difference is that OpenTofu's JSON has
-no `complete` and no `applyable` (see [OpenTofu](#opentofu)). Fixtures and comparison tables:
-[tests/fixtures/README.md](tests/fixtures/README.md). Any `format_version` of the form `1.x` is
+no `complete` and no `applyable` (see [OpenTofu](https://github.com/ZahraMost/planfence#opentofu)). Fixtures and comparison tables:
+[tests/fixtures/README.md](https://github.com/ZahraMost/planfence/blob/main/tests/fixtures/README.md). Any `format_version` of the form `1.x` is
 accepted and unknown properties are ignored, but any action list not seen in real output is
 rejected (exit 2) rather than guessed.
 
 Not verified: plans containing `deposed` objects; the real JSON shape of `action_invocations` and
 `deferred_changes` (refused via hand-made fixtures only, neither tool could produce them with
 built-in resources); other OpenTofu/Terraform versions and providers; Python 3.11 and 3.12
-(developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](CLAUDE.md).
+(developed on 3.13; CI covers all three). See the "NOT verified" list in [CLAUDE.md](https://github.com/ZahraMost/planfence/blob/main/CLAUDE.md).
 
 ## Security notes
 
-Report vulnerabilities privately, see [SECURITY.md](SECURITY.md). Changes are listed in
-[CHANGELOG.md](CHANGELOG.md).
+Report vulnerabilities privately, see [SECURITY.md](https://github.com/ZahraMost/planfence/blob/main/SECURITY.md). Changes are listed in
+[CHANGELOG.md](https://github.com/ZahraMost/planfence/blob/main/CHANGELOG.md).
 
 - The plan JSON contains attribute values, possibly secrets. Don't commit it or upload it as a
   CI artifact; delete it after the check.
@@ -409,12 +409,12 @@ keep that meaningful.
    **branch protection** (required review by the owners, required status check). The same goes for the
    workflow file that runs planfence and for the planfence version you install: pin it and take
    it from a trusted source, not from the PR. See
-   [examples/github-actions/planfence-example.yml](examples/github-actions/planfence-example.yml),
+   [examples/github-actions/planfence-example.yml](https://github.com/ZahraMost/planfence/blob/main/examples/github-actions/planfence-example.yml),
    which reads the contract with `git show origin/<base>:planfence.toml`.
 
    The workflow file and the planfence version are part of the trust boundary: whoever can change
    them can change what is checked. A CODEOWNERS file that covers all of them (see
-   [examples/CODEOWNERS](examples/CODEOWNERS)), together with branch protection that requires
+   [examples/CODEOWNERS](https://github.com/ZahraMost/planfence/blob/main/examples/CODEOWNERS)), together with branch protection that requires
    code-owner review, protects the boundary:
 
    ```
@@ -472,8 +472,8 @@ keep that meaningful.
 Run planfence with a job timeout (e.g. `timeout-minutes: 5` in GitHub Actions) so an unexpectedly
 huge or adversarial plan can never hang your pipeline. Both workflows in this repo set one.
 
-- [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the test suite on Python 3.11-3.13.
-- [examples/github-actions/planfence-example.yml](examples/github-actions/planfence-example.yml)
+- [.github/workflows/ci.yml](https://github.com/ZahraMost/planfence/blob/main/.github/workflows/ci.yml) runs the test suite on Python 3.11-3.13.
+- [examples/github-actions/planfence-example.yml](https://github.com/ZahraMost/planfence/blob/main/examples/github-actions/planfence-example.yml)
   shows how to run planfence on a plan in your own pipeline (copy it into your repo; it is not
   active here).
 
@@ -511,4 +511,4 @@ own temporary directories.
 
 ## License
 
-[MIT](LICENSE), copyright (c) 2026 ZahraMost.
+[MIT](https://github.com/ZahraMost/planfence/blob/main/LICENSE), copyright (c) 2026 ZahraMost.

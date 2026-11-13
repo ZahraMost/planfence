@@ -1,0 +1,70 @@
+name: Bug report
+description: planfence passed or refused something it should not have, crashed, or printed something wrong.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        planfence is maintained by one person on a best-effort basis; there is no response-time guarantee.
+        A small, complete report is the fastest way to get a fix. For a security vulnerability do not open
+        an issue: use the private link on the issue chooser page.
+  - type: input
+    id: planfence-version
+    attributes:
+      label: planfence version
+      description: Output of `planfence --version`.
+      placeholder: planfence 0.1.1
+    validations:
+      required: true
+  - type: input
+    id: tool-version
+    attributes:
+      label: Terraform or OpenTofu version
+      description: Which tool made the plan, and its version (`terraform version` or `tofu version`).
+      placeholder: Terraform 1.17.2
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: >-
+        Say clearly whether planfence passed something it should have refused, or refused or failed something
+        it should have passed, or something else.
+    validations:
+      required: true
+  - type: input
+    id: exit-code
+    attributes:
+      label: Exit code
+      description: 0 (pass), 1 (violation) or 2 (refused or error).
+      placeholder: "0"
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Minimal planfence.toml
+      description: The smallest contract that still shows the problem.
+      render: toml
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Minimal plan JSON
+      description: |
+        WARNING: a plan JSON contains attribute values and can contain secrets. Before pasting, remove ALL
+        secrets and attribute values (keep only address, type and change.actions, plus format_version,
+        errored and complete), and cut it down to the few resource_changes entries that show the problem.
+        Never paste a real plan unedited.
+      render: json
+    validations:
+      required: true
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: Confirmation
+      options:
+        - label: I removed all secrets and attribute values from the plan JSON above.
+          required: true

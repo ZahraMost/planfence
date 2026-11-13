@@ -515,6 +515,14 @@ python3.13 -m venv .venv
 `scripts/make_fixtures.py` is the only place `terraform apply` is ever run, and only inside its
 own temporary directories.
 
+## Support
+
+planfence is a one-person project, maintained on a best-effort basis, with no response-time guarantee.
+The best way to report a problem is an
+[issue](https://github.com/ZahraMost/planfence/issues/new/choose) using the bug report template, with a
+minimal plan JSON (remove secrets and attribute values first). Vulnerabilities go through private
+vulnerability reporting, see [SECURITY.md](https://github.com/ZahraMost/planfence/blob/main/SECURITY.md).
+
 ## License
 
 [MIT](https://github.com/ZahraMost/planfence/blob/main/LICENSE), copyright (c) 2026 ZahraMost.

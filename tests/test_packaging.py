@@ -249,7 +249,7 @@ def test_readme_has_no_relative_links_or_anchors_because_pypi_shows_it_as_long_d
     assert targets
     assert [t for t in targets if not t.startswith("https://")] == []
     own = [t for t in targets if t.startswith("https://github.com/ZahraMost/planfence")]
-    assert own and all(re.fullmatch(r"https://github\.com/ZahraMost/planfence(?:#[\w-]+|/(?:blob|tree)/main/[\w./-]+)", t)
+    assert own and all(re.fullmatch(r"https://github\.com/ZahraMost/planfence(?:#[\w-]+|/issues/new/choose|/(?:blob|tree)/main/[\w./-]+)", t)
                        for t in own), own
     for t in own:  # every own-repo file link points at something that exists
         m = re.search(r"/(?:blob|tree)/main/(.+)$", t)

@@ -136,6 +136,16 @@ def moved(src: str, dst: str) -> str:
     return f"\nmoved {{\n  from = {src}\n  to   = {dst}\n}}\n"
 
 
+def fe_set(key: str) -> str:
+    """for_each over a one-element set; the instance is terraform_data.x[<key>] and its input is constant."""
+    return (
+        'resource "terraform_data" "x" {\n'
+        f'  for_each = toset(["{key}"])\n'
+        '  input    = "v"\n'
+        "}\n"
+    )
+
+
 MODULE_THING: Files = {"modules/m/main.tf": named("thing")}
 
 
@@ -238,6 +248,12 @@ SCENARIOS: dict[str, Scenario] = {
         planned={"main.tf": 'module "m" {\n  source = "./modules/m"\n}\n'
                  + moved("terraform_data.thing", "module.m.terraform_data.thing")},
     ),
+    # for_each key rename a -> b (stored in tests/fixtures/for_each_rename/<tool>/): without and with a moved block
+    "for_each_rename": Scenario(
+        baseline={"main.tf": fe_set("a")}, planned={"main.tf": fe_set("b")}, default=False),
+    "for_each_rename_moved": Scenario(
+        baseline={"main.tf": fe_set("a")}, default=False,
+        planned={"main.tf": fe_set("b") + moved('terraform_data.x["a"]', 'terraform_data.x["b"]')}),
     # ordinary plans with an output (stored in tests/fixtures/outputs/<tool>/)
     "output_unchanged": Scenario(
         baseline={"main.tf": with_output("a")}, planned={"main.tf": with_output("a")}, default=False),

@@ -128,6 +128,22 @@ Both tools are identical (apart from OpenTofu's missing `complete` / `applyable`
 `applyable: true` for the pure moves: applying them changes the state. The only extra key on an entry
 is `previous_address` (plus `module_address` for the module case); the top-level shape is unchanged.
 
+## for_each_rename/ (generated): renaming a `for_each` key, real output of both tools
+
+`for_each_rename/terraform/` (Terraform 1.17.2) and `for_each_rename/opentofu/` (OpenTofu 1.13.9), generated with
+`scripts/make_fixtures.py --binary <terraform|tofu> --out tests/fixtures/for_each_rename/<dir> for_each_rename for_each_rename_moved`
+(non-default scenarios, built-in `terraform_data` only, no providers downloaded; the baseline apply runs only
+in the throwaway directory). The resource is `terraform_data.x` with `for_each = toset(["a"])` and a constant
+`input`; the baseline is applied, then the key is renamed to `"b"`.
+
+| Scenario | Config change | `resource_changes` |
+|---|---|---|
+| `for_each_rename` | key `"a"` -> `"b"`, no `moved` block | `terraform_data.x["a"]` -> `["delete"]` (`action_reason: delete_because_each_key`), `terraform_data.x["b"]` -> `["create"]` |
+| `for_each_rename_moved` | key `"a"` -> `"b"` plus `moved { from = terraform_data.x["a"], to = terraform_data.x["b"] }` | one entry `terraform_data.x["b"]` -> `["no-op"]`, `previous_address` `terraform_data.x["a"]` |
+
+Both tools are identical (apart from OpenTofu's missing `complete` / `applyable`). The planfence results per
+rule are pinned in `tests/test_for_each_rename.py`.
+
 ## outputs/ (generated): ordinary plans that have an output
 
 `outputs/terraform/` (Terraform 1.17.2) and `outputs/opentofu/` (OpenTofu 1.13.9), non-default scenarios

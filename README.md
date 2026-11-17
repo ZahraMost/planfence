@@ -190,6 +190,26 @@ A resource that a `moved` block renames or relocates appears in `resource_change
   and a later PR that changes it are each judged on its own against the allowlist; the contract is the
   allowlist, and a resource inside it may be changed however it got there.
 
+### Renaming a `for_each` key
+
+Verified with real plans from Terraform 1.17.2 and OpenTofu 1.13.9 (built-in `terraform_data` only; both tools
+give identical results; fixtures in `tests/fixtures/for_each_rename/`, see
+[tests/fixtures/README.md](https://github.com/ZahraMost/planfence/blob/main/tests/fixtures/README.md)).
+Renaming the key `"a"` to `"b"` of a `for_each` resource:
+
+- **Without a `moved` block** the plan is `["delete"]` for `x["a"]` plus `["create"]` for `x["b"]`: two
+  entries under different addresses. `no-delete` catches the delete and `stateful-protect` flags it for a
+  configured type, but `no-replace` does **not** fire, because the delete and the create are not on the
+  same address (it only looks at one entry's actions). `scope` needs both addresses in the allowlist, and
+  `budget` counts two changes and one create.
+- **With a `moved` block** the plan is a single `["no-op"]` entry at `x["b"]` with `previous_address`
+  `x["a"]`: no delete, no create. `no-delete`, `no-replace` and `stateful-protect` pass and `budget` counts
+  no change, but `scope` needs both addresses in the allowlist, as for any move. With
+  `state_only_plans = "refuse"` such a pure move exits 2.
+
+If renamed keys must not be accepted silently, keep `no-delete` enabled: it is the rule that sees the
+rename without a `moved` block.
+
 ## Configuration: `planfence.toml`
 
 See [examples/planfence.toml](https://github.com/ZahraMost/planfence/blob/main/examples/planfence.toml).
